@@ -2,6 +2,11 @@ from app.models.archive_request import (
     ArchiveRequest,
     ArchiveRequestStatusHistory,
     ArchiveRequestTemplate,
+    ArchiveRequestTemplateAttachment,
+    ArchiveRequestTemplateBlock,
+    ArchiveRequestTemplateField,
+    FieldDictionary,
+    GeneratedArchiveRequest,
 )
 from app.models.book import GeneratedBook
 from app.models.document import ArchiveRequestDocument, Document, FactDocument, PersonDocument
@@ -18,6 +23,11 @@ __all__ = [
     "Relationship",
     "Fact",
     "ArchiveRequestTemplate",
+    "ArchiveRequestTemplateField",
+    "ArchiveRequestTemplateBlock",
+    "ArchiveRequestTemplateAttachment",
+    "FieldDictionary",
+    "GeneratedArchiveRequest",
     "ArchiveRequest",
     "ArchiveRequestStatusHistory",
     "Document",

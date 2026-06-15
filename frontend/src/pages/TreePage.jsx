@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ReactFlow, Background, Controls, MiniMap,
   useNodesState, useEdgesState,
@@ -300,6 +300,7 @@ function buildFlow({ nodes: raw, edges: rawEdges }) {
 export default function TreePage() {
   const { id } = useParams()
   const nav = useNavigate()
+  const location = useLocation()
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
@@ -316,7 +317,18 @@ export default function TreePage() {
   return (
     <div style={{ height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '8px 16px', borderBottom: '1px solid #e5e7eb', background: '#fff', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button className="outline sm" onClick={() => nav(`/profiles/${id}`)}>← Назад</button>
+        <button
+          className="outline sm"
+          onClick={() => {
+            const returnTo = location.state?.returnTo
+            const treeBackTo = location.state?.treeBackTo
+            nav(treeBackTo || `/profiles/${id}`, {
+              state: returnTo ? { returnTo } : undefined,
+            })
+          }}
+        >
+          ← Назад
+        </button>
         <strong>Генеалогическое дерево</strong>
         <span style={{ fontSize: 12, color: '#6b7280' }}>Новейшие сверху · Синий — мужчины · Розовый — женщины · Красная — супруги · Пунктир — иные связи</span>
       </div>

@@ -19,10 +19,22 @@ class DocumentRepository(SQLAlchemyRepository[Document]):
 
     async def get_by_archive_request(self, archive_request_id: UUID) -> list[Document]:
         result = await self.session.execute(
-            select(Document)
+            select(Document, ArchiveRequestDocument.relation_type)
             .join(ArchiveRequestDocument, ArchiveRequestDocument.document_id == Document.id)
             .where(ArchiveRequestDocument.archive_request_id == archive_request_id)
             .order_by(Document.created_at.desc())
+        )
+        docs: list[Document] = []
+        for doc, relation_type in result.all():
+            doc.archive_request_relation_type = relation_type
+            docs.append(doc)
+        return docs
+
+    async def get_archive_request_ids(self, document_id: UUID) -> list[UUID]:
+        result = await self.session.execute(
+            select(ArchiveRequestDocument.archive_request_id).where(
+                ArchiveRequestDocument.document_id == document_id
+            )
         )
         return list(result.scalars().all())
 

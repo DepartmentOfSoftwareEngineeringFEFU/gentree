@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
+import { useAuth } from '../App'
 
 const BOOK_STATUS_LABEL = { PENDING: 'Ожидает', IN_PROGRESS: 'Формируется', SUCCEEDED: 'Готова', FAILED: 'Ошибка' }
 const BOOK_STATUS_COLOR = { PENDING: '#f59e0b', IN_PROGRESS: '#6366f1', SUCCEEDED: '#16a34a', FAILED: '#ef4444' }
@@ -8,20 +9,23 @@ const BOOK_STATUS_COLOR = { PENDING: '#f59e0b', IN_PROGRESS: '#6366f1', SUCCEEDE
 const SEX_LABEL = { MALE: 'М', FEMALE: 'Ж', UNKNOWN: '?' }
 const SEX_OPT = ['MALE', 'FEMALE', 'UNKNOWN']
 const STATUS_LABEL = {
-  DRAFT: 'Черновик', PREPARED: 'Подготовлен', SENT: 'Отправлен',
-  IN_PROGRESS: 'В обработке', RESPONSE_RECEIVED: 'Получен ответ',
+  DRAFT: 'Подготовлен', PREPARED: 'Подготовлен', SENT: 'Направлен',
+  IN_PROGRESS: 'В обработке', NEEDS_CLARIFICATION: 'Требуются доп. сведения',
+  RESPONSE_RECEIVED: 'Получен ответ',
   COMPLETED: 'Завершён', CANCELLED: 'Отменён',
 }
 const REL_LABEL = { PARENT_CHILD: 'Родитель → Ребёнок', SPOUSE: 'Супруги', OTHER: 'Иная связь' }
 
 const EMPTY_PERSON = { last_name: '', first_name: '', middle_name: '', sex: 'UNKNOWN',
   birth_date: '', death_date: '', birth_place: '', death_place: '', notes: '', is_living: true }
-const EMPTY_REQ = { title: '', request_goal: '', requested_archive_name: '' }
+const EMPTY_REQ = { title: '', request_goal: '' }
 const EMPTY_REL = { source_person_id: '', target_person_id: '', relationship_type: 'PARENT_CHILD', notes: '', layout_as: '' }
 
 export default function ProfilePage() {
   const { id } = useParams()
   const nav = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [persons, setPersons] = useState([])
   const [requests, setRequests] = useState([])
@@ -44,7 +48,7 @@ export default function ProfilePage() {
     api.listPersons(id).then(setPersons)
     api.listRequests(id).then(setRequests)
     api.listRelationships(id).then(setRelationships)
-    api.listBooks(id).then(setBooks)
+    api.listBooks(id).then(setBooks).catch(() => setBooks([]))
   }, [id])
 
   const fullName = (p) =>
@@ -76,7 +80,6 @@ export default function ProfilePage() {
       const r = await api.createRequest(id, {
         title: reqForm.title,
         request_goal: reqForm.request_goal || null,
-        requested_archive_name: reqForm.requested_archive_name || null,
       })
       setRequests(prev => [r, ...prev])
       setShowReqForm(false)
@@ -142,19 +145,32 @@ export default function ProfilePage() {
   }
 
   if (!profile) return <div className="page muted">Загрузка...</div>
+  const readOnly = user?.role === 'GENEALOGIST'
+  const returnTo = location.state?.returnTo
+  const backPath = readOnly && returnTo ? returnTo : '/'
+  const backLabel = readOnly && returnTo ? '← Назад' : '← Исследования'
 
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 4, justifyContent: 'space-between' }}>
-        <span className="link" onClick={() => nav('/')}>← Исследования</span>
-        <button className="outline sm" onClick={() => nav(`/profiles/${id}/tree`)}>🌳 Дерево</button>
+        <span className="link" onClick={() => nav(backPath)}>{backLabel}</span>
+        <button
+          className="outline sm"
+          onClick={() => nav(`/profiles/${id}/tree`, {
+            state: returnTo
+              ? { returnTo, treeBackTo: `/profiles/${id}` }
+              : undefined,
+          })}
+        >
+          🌳 Дерево
+        </button>
       </div>
 
       <div className="row" style={{ marginBottom: editingProfile ? 8 : 20, marginTop: 8, justifyContent: 'space-between' }}>
         <h1>{profile.title}</h1>
         <div className="row" style={{ gap: 8 }}>
           <span className={`badge ${profile.status.toLowerCase()}`}>{STATUS_LABEL[profile.status] ?? profile.status}</span>
-          {!editingProfile && <button className="outline sm" onClick={startEditProfile}>Изменить</button>}
+          {!readOnly && !editingProfile && <button className="outline sm" onClick={startEditProfile}>Изменить</button>}
         </div>
       </div>
 
@@ -185,7 +201,7 @@ export default function ProfilePage() {
 
       {/* Tabs */}
       <div className="row" style={{ marginBottom: 16, borderBottom: '1px solid #e5e7eb', paddingBottom: 0 }}>
-        {['persons', 'relationships', 'requests', 'book'].map(t => (
+        {['persons', 'relationships', 'requests', ...(readOnly ? [] : ['book'])].map(t => (
           <button
             key={t}
             className="outline"
@@ -207,12 +223,14 @@ export default function ProfilePage() {
         <>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <h2>Персоны</h2>
-            <button onClick={() => setShowPersonForm(!showPersonForm)}>
-              {showPersonForm ? 'Отмена' : '+ Добавить'}
-            </button>
+            {!readOnly && (
+              <button onClick={() => setShowPersonForm(!showPersonForm)}>
+                {showPersonForm ? 'Отмена' : '+ Добавить'}
+              </button>
+            )}
           </div>
 
-          {showPersonForm && (
+          {!readOnly && showPersonForm && (
             <form onSubmit={addPerson} className="card col" style={{ marginBottom: 16 }}>
               <h3>Новая персона</h3>
               <div className="row">
@@ -302,18 +320,20 @@ export default function ProfilePage() {
         <>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <h2>Родственные связи</h2>
-            <button onClick={() => setShowRelForm(!showRelForm)} disabled={persons.length < 2}>
-              {showRelForm ? 'Отмена' : '+ Добавить связь'}
-            </button>
+            {!readOnly && (
+              <button onClick={() => setShowRelForm(!showRelForm)} disabled={persons.length < 2}>
+                {showRelForm ? 'Отмена' : '+ Добавить связь'}
+              </button>
+            )}
           </div>
 
-          {persons.length < 2 && (
+          {!readOnly && persons.length < 2 && (
             <p className="muted" style={{ marginBottom: 12 }}>
               Добавьте минимум 2 персоны, чтобы создавать связи.
             </p>
           )}
 
-          {showRelForm && (
+          {!readOnly && showRelForm && (
             <form onSubmit={addRelationship} className="card col" style={{ marginBottom: 16 }}>
               <h3>Новая связь</h3>
               <div className="row">
@@ -403,7 +423,7 @@ export default function ProfilePage() {
           ) : (
             <table>
               <thead>
-                <tr><th>Тип</th><th>Источник</th><th>Цель</th><th></th></tr>
+                <tr><th>Тип</th><th>Источник</th><th>Цель</th>{!readOnly && <th></th>}</tr>
               </thead>
               <tbody>
                 {relationships.map(r => {
@@ -414,9 +434,11 @@ export default function ProfilePage() {
                       <td><span className="badge">{REL_LABEL[r.relationship_type] ?? r.relationship_type}</span></td>
                       <td>{src ? fullName(src) : r.source_person_id}</td>
                       <td>{tgt ? fullName(tgt) : r.target_person_id}</td>
-                      <td>
-                        <button className="danger sm" onClick={() => deleteRelationship(r.id)}>×</button>
-                      </td>
+                      {!readOnly && (
+                        <td>
+                          <button className="danger sm" onClick={() => deleteRelationship(r.id)}>×</button>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -431,12 +453,14 @@ export default function ProfilePage() {
         <>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <h2>Архивные запросы</h2>
-            <button onClick={() => setShowReqForm(!showReqForm)}>
-              {showReqForm ? 'Отмена' : '+ Создать'}
-            </button>
+            {!readOnly && (
+              <button onClick={() => setShowReqForm(!showReqForm)}>
+                {showReqForm ? 'Отмена' : '+ Создать'}
+              </button>
+            )}
           </div>
 
-          {showReqForm && (
+          {!readOnly && showReqForm && (
             <form onSubmit={addRequest} className="card col" style={{ marginBottom: 16 }}>
               <h3>Новый запрос</h3>
               <div className="col">
@@ -446,10 +470,6 @@ export default function ProfilePage() {
               <div className="col">
                 <label className="label">Цель запроса</label>
                 <textarea value={reqForm.request_goal} onChange={rf('request_goal')} rows={2} />
-              </div>
-              <div className="col">
-                <label className="label">Название архива</label>
-                <input value={reqForm.requested_archive_name} onChange={rf('requested_archive_name')} />
               </div>
               <div className="row">
                 <button type="submit">Создать</button>
@@ -463,14 +483,13 @@ export default function ProfilePage() {
           ) : (
             <table>
               <thead>
-                <tr><th>Название</th><th>Архив</th><th>Статус</th></tr>
+                <tr><th>Название</th><th>Статус</th></tr>
               </thead>
               <tbody>
                 {requests.map(r => (
                   <tr key={r.id} style={{ cursor: 'pointer' }}
                     onClick={() => nav(`/profiles/${id}/requests/${r.id}`)}>
                     <td><strong>{r.title}</strong></td>
-                    <td className="muted">{r.requested_archive_name ?? '—'}</td>
                     <td><span className={`badge ${r.current_status.toLowerCase()}`}>
                       {STATUS_LABEL[r.current_status] ?? r.current_status}
                     </span></td>
@@ -486,9 +505,11 @@ export default function ProfilePage() {
         <>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
             <h2>Генеалогическая книга</h2>
-            <button onClick={generateBook} disabled={bookLoading}>
-              {bookLoading ? 'Создаётся...' : '+ Сформировать книгу'}
-            </button>
+            {!readOnly && (
+              <button onClick={generateBook} disabled={bookLoading}>
+                {bookLoading ? 'Создаётся...' : '+ Сформировать книгу'}
+              </button>
+            )}
           </div>
           <p className="muted" style={{ marginBottom: 16, fontSize: 13 }}>
             Система сформирует итоговый документ на основе данных профиля, персон и фактов.

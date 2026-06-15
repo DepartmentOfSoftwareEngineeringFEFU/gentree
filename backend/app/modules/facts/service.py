@@ -5,9 +5,10 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.archive_request import ArchiveRequest
 from app.models.enums import FactConfidence, UserRole
 from app.models.fact import Fact
-from app.models.profile import Person, Profile
+from app.models.profile import Person, Profile, ProfilePerson
 from app.models.user import User
 from app.modules.facts.schemas import FactCreate, FactUpdate
 from app.repositories.fact import FactRepository
@@ -21,21 +22,36 @@ class FactService:
     async def _get_person_with_access(self, person_id: UUID, user: User) -> Person:
         result = await self.db.execute(
             select(Person)
-            .join(Profile, Person.profile_id == Profile.id)
+            .join(ProfilePerson, ProfilePerson.person_id == Person.id)
+            .join(Profile, ProfilePerson.profile_id == Profile.id)
             .where(Person.id == person_id)
         )
-        person = result.scalar_one_or_none()
+        person = result.scalars().first()
         if not person:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
 
         profile_result = await self.db.execute(
-            select(Profile).where(Profile.id == person.profile_id)
+            select(Profile)
+            .join(ProfilePerson, ProfilePerson.profile_id == Profile.id)
+            .where(ProfilePerson.person_id == person.id)
         )
-        profile = profile_result.scalar_one()
-        if user.role != UserRole.ADMIN and profile.owner_user_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        profiles = list(profile_result.scalars().all())
+        if user.role == UserRole.ADMIN:
+            return person
+        if any(p.owner_user_id == user.id for p in profiles):
+            return person
+        if user.role == UserRole.GENEALOGIST:
+            profile_ids = [p.id for p in profiles]
+            assigned_result = await self.db.execute(
+                select(ArchiveRequest.id).where(
+                    ArchiveRequest.profile_id.in_(profile_ids),
+                    ArchiveRequest.assigned_genealogist_user_id == user.id,
+                )
+            )
+            if assigned_result.scalars().first() is not None:
+                return person
 
-        return person
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     async def _get_fact_with_access(self, fact_id: UUID, user: User) -> Fact:
         fact = await self.repo.get_by_id(fact_id)
@@ -45,6 +61,8 @@ class FactService:
         return fact
 
     async def create(self, person_id: UUID, data: FactCreate, user: User) -> Fact:
+        if user.role == UserRole.GENEALOGIST:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         await self._get_person_with_access(person_id, user)
         return await self.repo.create(person_id=person_id, **data.model_dump())
 
@@ -57,6 +75,11 @@ class FactService:
         updates = data.model_dump(exclude_none=True)
         if not updates:
             return fact
+        if user.role == UserRole.GENEALOGIST and set(updates) != {"confidence"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Genealogist can update only fact confidence",
+            )
 
         # auto-stamp verification when a genealogist/admin sets CONFIRMED
         if updates.get("confidence") == FactConfidence.CONFIRMED:
@@ -67,5 +90,7 @@ class FactService:
         return await self.repo.update(fact, **updates)
 
     async def delete(self, fact_id: UUID, user: User) -> None:
+        if user.role == UserRole.GENEALOGIST:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         fact = await self._get_fact_with_access(fact_id, user)
         await self.repo.delete(fact)

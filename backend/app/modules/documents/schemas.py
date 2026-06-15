@@ -13,6 +13,7 @@ class DocumentRead(BaseModel):
     uploaded_by_user_id: UUID | None
     document_kind: DocumentKind
     source_type: DocumentSourceType
+    archive_request_relation_type: str | None = None
     file_name: str
     mime_type: str
     file_size_bytes: int
