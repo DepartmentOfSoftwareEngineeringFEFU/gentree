@@ -331,7 +331,7 @@ export default function ProfilePage() {
       )}
 
       {/* Tabs */}
-      <div className="row" style={{ marginBottom: 16, borderBottom: '1px solid #e5e7eb', paddingBottom: 0 }}>
+      <div className="row" style={{ marginBottom: 16, borderBottom: '1px solid #ddd4c0', paddingBottom: 0 }}>
         {['persons', 'relationships', 'requests', ...(readOnly ? [] : ['book'])].map(t => (
           <button
             key={t}
@@ -363,7 +363,7 @@ export default function ProfilePage() {
 
           {persons.length > 0 && (
             <div style={{ position: 'relative', marginBottom: 12 }}>
-              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#c0b8aa', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="8.5" cy="8.5" r="5.5" /><line x1="13" y1="13" x2="18" y2="18" />
               </svg>
               <input
@@ -580,7 +580,7 @@ export default function ProfilePage() {
 
           {relationships.length > 0 && (
             <div style={{ position: 'relative', marginBottom: 12 }}>
-              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#c0b8aa', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="8.5" cy="8.5" r="5.5" /><line x1="13" y1="13" x2="18" y2="18" />
               </svg>
               <input

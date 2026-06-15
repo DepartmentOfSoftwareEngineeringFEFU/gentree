@@ -4,7 +4,7 @@ import { api } from '../api'
 import { useAuth } from '../App'
 
 const STATUS_LABEL = {
-  DRAFT: 'Подготовлен', PREPARED: 'Подготовлен', SENT: 'Направлен',
+  DRAFT: 'Черновик', PREPARED: 'Подготовлен', SENT: 'Направлен',
   IN_PROGRESS: 'В обработке', NEEDS_CLARIFICATION: 'Требуются доп. сведения',
   RESPONSE_RECEIVED: 'Получен ответ',
   COMPLETED: 'Завершён', CANCELLED: 'Отменён',
@@ -118,7 +118,7 @@ export default function RequestDetailPage() {
   const [docs, setDocs] = useState([])
   const [generatedDocs, setGeneratedDocs] = useState([])
   const [activeTemplates, setActiveTemplates] = useState([])
-  const [activeSection, setActiveSection] = useState('PROFILE')
+  const [activeSection, setActiveSection] = useState('OVERVIEW')
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardStep, setWizardStep] = useState('SELECT')
   const [currentGenerated, setCurrentGenerated] = useState(null)
@@ -653,17 +653,70 @@ export default function RequestDetailPage() {
     && (resultForm.result_summary.trim() || resultForm.found_information.trim())
     && (genealogistDocs.length > 0 || resultForm.result_sources.trim() || resultForm.processing_comment.trim())
   )
+  const generatedReady = generatedDocs.some(item =>
+    ['PREPARED', 'EXPORTED', 'SENT_OUTSIDE_SYSTEM', 'RESPONSE_RECEIVED'].includes(item.status)
+  )
+  const nextStep = (() => {
+    if (req.current_status === 'NEEDS_CLARIFICATION') {
+      return {
+        title: 'Ожидается ответ пользователя',
+        description: 'Пользователь должен передать дополнительные сведения или загрузить документы. После ответа запрос вернётся в обработку.',
+        section: 'CLARIFICATION',
+      }
+    }
+    if (isTerminal) {
+      return {
+        title: 'Работа по запросу завершена',
+        description: 'Запрос больше нельзя редактировать. Проверьте итог, документы и историю при необходимости.',
+        section: 'RESULT',
+      }
+    }
+    if (!profileError && persons.length === 0) {
+      return {
+        title: 'Проверьте связанный профиль',
+        description: 'В профиле нет персон или сведения ещё загружаются. Начните с анализа профиля и материалов пользователя.',
+        section: 'PROFILE',
+      }
+    }
+    if (generatedDocs.length === 0) {
+      return {
+        title: 'Сформируйте архивное обращение',
+        description: 'Выберите активный шаблон, заполните поля, проверьте текст и сохраните обращение как подготовленный документ.',
+        section: 'GENERATED',
+      }
+    }
+    if (!generatedReady) {
+      return {
+        title: 'Продолжите подготовку архивного обращения',
+        description: 'Есть черновик обращения. Завершите заполнение, предпросмотр и выбор приложений.',
+        section: 'GENERATED',
+      }
+    }
+    if (!resultReady) {
+      return {
+        title: 'Зафиксируйте результат обработки',
+        description: 'Заполните итог, найденные сведения, источники и загрузите найденные документы или поясните их отсутствие.',
+        section: 'RESULT',
+      }
+    }
+    return {
+      title: 'Завершите обработку запроса',
+      description: 'Результат заполнен. Можно перевести запрос на следующий этап или завершить обработку.',
+      section: 'RESULT',
+    }
+  })()
   const showUserResultSummary = isOwner && ['RESPONSE_RECEIVED', 'COMPLETED'].includes(req.current_status)
   const canUploadDoc = !isTerminal
   const canEditRequest = !isTerminal && !editingReq
   const sectionVisible = (section) => !isGenealogist || activeSection === section
   const genealogistSections = [
-    ['PROFILE', 'Связанный профиль'],
-    ['CLARIFICATION', 'Доп. сведения'],
-    ['RESULT', 'Результат обработки'],
-    ['GENERATED', 'Сформированные обращения'],
-    ['HISTORY', 'История запросов'],
+    ['OVERVIEW', 'Обзор'],
+    ['PROFILE', 'Профиль'],
     ['DOCS', 'Документы'],
+    ['CLARIFICATION', 'Доп. сведения'],
+    ['GENERATED', 'Архивные обращения'],
+    ['RESULT', 'Результат'],
+    ['HISTORY', 'История'],
   ]
 
   return (
@@ -695,8 +748,8 @@ export default function RequestDetailPage() {
           className="card"
           style={{
             marginBottom: 16,
-            borderColor: '#bbf7d0',
-            background: '#f0fdf4',
+            borderColor: '#c9d8c2',
+            background: '#f5fbef',
           }}
         >
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -788,6 +841,64 @@ export default function RequestDetailPage() {
         </div>
       )}
 
+      <div style={{ display: sectionVisible('OVERVIEW') ? undefined : 'none' }}>
+        <section className="card" style={{ marginBottom: 16 }}>
+          <div className="label">Следующий шаг</div>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginTop: 4 }}>
+            <div>
+              <h2>{nextStep.title}</h2>
+              <p className="muted" style={{ marginTop: 4 }}>{nextStep.description}</p>
+            </div>
+            <button className="sm" onClick={() => setActiveSection(nextStep.section)}>
+              Перейти
+            </button>
+          </div>
+        </section>
+
+        <section className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginBottom: 12 }}>Ход работы</h2>
+          <div className="col" style={{ gap: 10 }}>
+            {[
+              ['1', 'Изучить запрос', req.request_goal || 'Исходная формулировка пользователя не указана.', 'OVERVIEW'],
+              ['2', 'Проверить профиль и материалы', `${persons.length} персон, ${userDocs.length} материал(ов) пользователя.`, 'PROFILE'],
+              ['3', 'Запросить доп. сведения при необходимости', latestClarificationRequest?.comment || 'Можно пропустить, если сведений достаточно.', 'CLARIFICATION'],
+              ['4', 'Сформировать архивные обращения', `${generatedDocs.length} обращение(й), подготовленных: ${generatedDocs.filter(item => item.status !== 'DRAFT').length}.`, 'GENERATED'],
+              ['5', 'Зафиксировать результат', resultReady ? 'Итоговые сведения заполнены.' : 'Результат обработки ещё не готов к завершению.', 'RESULT'],
+              ['6', 'Завершить запрос', STATUS_LABEL[req.current_status] || req.current_status, 'RESULT'],
+            ].map(([number, title, description, section]) => (
+              <div
+                key={number}
+                className="row"
+                style={{
+                  alignItems: 'flex-start',
+                  border: '1px solid #ddd4c0',
+                  borderRadius: 7,
+                  padding: 10,
+                  background: section === nextStep.section ? '#f0e8d8' : '#fdfaf4',
+                }}
+              >
+                <span className="badge">{number}</span>
+                <div style={{ flex: 1 }}>
+                  <strong>{title}</strong>
+                  <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>{description}</p>
+                </div>
+                <button className="outline sm" onClick={() => setActiveSection(section)}>Открыть</button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginBottom: 12 }}>Краткая сводка</h2>
+          <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+            <OverviewMetric label="Статус запроса" value={STATUS_LABEL[req.current_status] || req.current_status} />
+            <OverviewMetric label="Материалы пользователя" value={userDocs.length} />
+            <OverviewMetric label="Архивные обращения" value={generatedDocs.length} />
+            <OverviewMetric label="Документы результата" value={genealogistDocs.length} />
+          </div>
+        </section>
+      </div>
+
       <div style={{ display: sectionVisible('PROFILE') ? undefined : 'none' }}>
       <h2 style={{ margin: '16px 0 10px' }}>Связанный профиль</h2>
       <section className="card" style={{ marginBottom: 16 }}>
@@ -824,21 +935,21 @@ export default function RequestDetailPage() {
             </div>
 
             <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #ddd4c0', borderRadius: 8, padding: 12, background: '#fdfaf4' }}>
                 <div className="label">Персоны</div>
                 <strong style={{ fontSize: 22 }}>{persons.length}</strong>
               </div>
-              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #ddd4c0', borderRadius: 8, padding: 12, background: '#fdfaf4' }}>
                 <div className="label">Связи</div>
                 <strong style={{ fontSize: 22 }}>{relationships.length}</strong>
               </div>
-              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #ddd4c0', borderRadius: 8, padding: 12, background: '#fdfaf4' }}>
                 <div className="label">Факты</div>
                 <strong style={{ fontSize: 22 }}>
                   {Object.values(factsByPerson).reduce((sum, facts) => sum + facts.length, 0)}
                 </strong>
               </div>
-              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, background: '#f9fafb' }}>
+              <div style={{ minWidth: 150, flex: '1 1 150px', border: '1px solid #ddd4c0', borderRadius: 8, padding: 12, background: '#fdfaf4' }}>
                 <div className="label">Документы запроса</div>
                 <strong style={{ fontSize: 22 }}>{docs.length}</strong>
               </div>
@@ -970,10 +1081,10 @@ export default function RequestDetailPage() {
 
       <div style={{ display: sectionVisible('CLARIFICATION') ? undefined : 'none' }}>
       <hr />
+      <h2 style={{ margin: '16px 0 10px' }}>Дополнительные сведения</h2>
 
       {canRequestClarification && (
         <div style={{ margin: '16px 0' }}>
-          <h2 style={{ marginBottom: 10 }}>Дополнительные сведения</h2>
           <form onSubmit={requestClarification} className="card col" style={{ maxWidth: 520 }}>
             <div>
               <strong>Запросить доп. сведения</strong>
@@ -996,6 +1107,29 @@ export default function RequestDetailPage() {
             </div>
           </form>
         </div>
+      )}
+
+      {isGenealogist && req.current_status === 'NEEDS_CLARIFICATION' && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <strong>Ожидается ответ пользователя</strong>
+          <p className="muted" style={{ marginTop: 4 }}>
+            Запрос дополнительных сведений уже отправлен. После ответа пользователя статус вернётся в обработку.
+          </p>
+          {latestClarificationRequest && (
+            <div style={{ marginTop: 10 }}>
+              <div className="label">Что запрошено</div>
+              <p>{latestClarificationRequest.comment || 'Дополнительные сведения по запросу.'}</p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {isGenealogist && !canRequestClarification && req.current_status !== 'NEEDS_CLARIFICATION' && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <p className="muted">
+            Для текущего статуса запрос дополнительных сведений недоступен.
+          </p>
+        </section>
       )}
 
       {showClarificationResponse && (
@@ -1106,7 +1240,7 @@ export default function RequestDetailPage() {
       ) : (
         <section className="card col" style={{ gap: 12 }}>
           {history.map(h => (
-            <div key={h.id} style={{ borderLeft: '3px solid #c7d2fe', paddingLeft: 12 }}>
+            <div key={h.id} style={{ borderLeft: '3px solid #d0c4b0', paddingLeft: 12 }}>
               <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <strong>{eventTitle(h)}</strong>
@@ -1204,6 +1338,22 @@ export default function RequestDetailPage() {
   )
 }
 
+function OverviewMetric({ label, value }) {
+  return (
+    <div style={{
+      minWidth: 160,
+      flex: '1 1 160px',
+      border: '1px solid #ddd4c0',
+      borderRadius: 7,
+      padding: 12,
+      background: '#fdfaf4',
+    }}>
+      <div className="label">{label}</div>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
 function GeneratedRequestsSection({
   request,
   templates,
@@ -1237,67 +1387,44 @@ function GeneratedRequestsSection({
   const selectedTemplate = currentGenerated?.template
   const requiredAttachments = selectedTemplate?.attachments?.filter(item => item.is_required) ?? []
   const selectedAttachmentIds = new Set(currentGenerated?.attached_document_ids ?? [])
+  const draftDocs = generatedDocs.filter(item => item.status === 'DRAFT')
+  const readyDocs = generatedDocs.filter(item => item.status !== 'DRAFT')
+  const missingRequiredFields = selectedTemplate?.fields?.filter(item => {
+    const value = currentGenerated?.field_values?.[item.field.code]?.value
+    return item.is_required && (value === undefined || value === null || value === '')
+  }) ?? []
+  const currentGeneratedHint = currentGenerated ? generatedRequestHint(currentGenerated) : ''
 
   return (
     <div style={{ margin: '16px 0' }}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-        <h2>Сформированные обращения</h2>
+        <h2>Архивные обращения</h2>
         <button className="sm" onClick={startGeneratedWizard}>Сформировать архивное обращение</button>
       </div>
 
       {generatedDocs.length === 0 ? (
-        <p className="muted" style={{ marginBottom: 12 }}>По этому архивному запросу обращения еще не сформированы.</p>
+        <p className="muted" style={{ marginBottom: 12 }}>По этому архивному запросу обращения ещё не сформированы.</p>
       ) : (
-        <section className="card" style={{ marginBottom: 16 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Создано</th>
-                <th>Шаблон</th>
-                <th>Статус</th>
-                <th>Экспорт</th>
-                <th>Направлено</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {generatedDocs.map(item => (
-                <tr key={item.id}>
-                  <td className="muted">{formatDateTime(item.created_at)}</td>
-                  <td>
-                    <strong>{item.template_title_snapshot}</strong>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {TEMPLATE_TYPE_LABEL[item.template_type_snapshot] ?? item.template_type_snapshot}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`badge ${String(item.status).toLowerCase()}`}>
-                      {GENERATED_STATUS_LABEL[item.status] ?? item.status}
-                    </span>
-                  </td>
-                  <td className="muted">{formatDateTime(item.exported_at)}</td>
-                  <td className="muted">{formatDateTime(item.sent_at)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="outline sm" onClick={() => openGenerated(item.id, 'PREVIEW')}>
-                      Открыть
-                    </button>
-                    <button className="outline sm" style={{ marginLeft: 6 }} onClick={() => openGenerated(item.id, 'FIELDS')}>
-                      Продолжить
-                    </button>
-                    <button
-                      className="outline sm"
-                      style={{ marginLeft: 6 }}
-                      onClick={() => changeGeneratedStatus('SENT_OUTSIDE_SYSTEM', item.id)}
-                      disabled={!['PREPARED', 'EXPORTED', 'SENT_OUTSIDE_SYSTEM'].includes(item.status)}
-                    >
-                      Отметить направленным
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <div className="col" style={{ marginBottom: 16 }}>
+          {draftDocs.length > 0 && (
+            <GeneratedDocumentsTable
+              title="Черновики"
+              items={draftDocs}
+              formatDateTime={formatDateTime}
+              openGenerated={openGenerated}
+              changeGeneratedStatus={changeGeneratedStatus}
+            />
+          )}
+          {readyDocs.length > 0 && (
+            <GeneratedDocumentsTable
+              title="Подготовленные и направленные"
+              items={readyDocs}
+              formatDateTime={formatDateTime}
+              openGenerated={openGenerated}
+              changeGeneratedStatus={changeGeneratedStatus}
+            />
+          )}
+        </div>
       )}
 
       {wizardOpen && (
@@ -1312,13 +1439,8 @@ function GeneratedRequestsSection({
             <button className="outline sm" onClick={() => setWizardOpen(false)}>Закрыть</button>
           </div>
 
-          <div className="row" style={{ flexWrap: 'wrap' }}>
-            {[
-              ['SELECT', '1. Шаблон'],
-              ['FIELDS', '2. Поля'],
-              ['PREVIEW', '3. Предпросмотр'],
-              ['ATTACHMENTS', '4. Приложения'],
-            ].map(([value, label]) => (
+          <div className="row" style={{ flexWrap: 'wrap', alignItems: 'stretch' }}>
+            {WIZARD_STEPS.map(([value, label], index) => (
               <button
                 key={value}
                 className={wizardStep === value ? 'sm' : 'outline sm'}
@@ -1326,11 +1448,18 @@ function GeneratedRequestsSection({
                   if (value === 'SELECT' || currentGenerated) setWizardStep(value)
                 }}
                 disabled={value !== 'SELECT' && !currentGenerated}
+                title={WIZARD_STEP_HINT[value]}
               >
-                {label}
+                {index + 1}. {label}
               </button>
             ))}
           </div>
+
+          <section style={{ border: '1px solid #ddd4c0', borderRadius: 7, padding: 12, background: '#fdfaf4' }}>
+            <strong>{WIZARD_STEP_TITLE[wizardStep]}</strong>
+            <p className="muted" style={{ marginTop: 4 }}>{WIZARD_STEP_HINT[wizardStep]}</p>
+            {currentGeneratedHint && <p className="muted" style={{ marginTop: 6 }}>{currentGeneratedHint}</p>}
+          </section>
 
           {wizardMessage && <p style={{ color: '#16a34a' }}>{wizardMessage}</p>}
 
@@ -1342,7 +1471,7 @@ function GeneratedRequestsSection({
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
                   {templates.map(template => (
-                    <div key={template.id} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 12 }}>
+                    <div key={template.id} style={{ border: '1px solid #ddd4c0', borderRadius: 6, padding: 12 }}>
                       <h3>{template.name}</h3>
                       <p className="muted" style={{ marginTop: 4 }}>{TEMPLATE_TYPE_LABEL[template.template_type]}</p>
                       {template.description && <p style={{ marginTop: 8 }}>{template.description}</p>}
@@ -1354,7 +1483,7 @@ function GeneratedRequestsSection({
                         </span>
                       </div>
                       <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                        Изменен: {formatDateTime(template.updated_at)}
+                        Изменён: {formatDateTime(template.updated_at)}
                       </p>
                       <button
                         className="sm"
@@ -1376,6 +1505,9 @@ function GeneratedRequestsSection({
               <div>
                 <h3>{selectedTemplate.name}</h3>
                 {selectedTemplate.description && <p className="muted">{selectedTemplate.description}</p>}
+                <p className="muted" style={{ marginTop: 4 }}>
+                  Выбранный шаблон: {TEMPLATE_TYPE_LABEL[selectedTemplate.template_type] ?? selectedTemplate.template_type}
+                </p>
               </div>
               <label className="col">
                 <span className="label">Комментарий генеалога</span>
@@ -1396,10 +1528,10 @@ function GeneratedRequestsSection({
                 const disabled = valueData.autofilled && !item.editable_after_autofill
                 return (
                   <label key={field.code} className="col" style={{
-                    border: emptyRequired ? '1px solid #fecaca' : '1px solid #e5e7eb',
+                    border: emptyRequired ? '1px solid #e8cfa0' : '1px solid #ddd4c0',
                     borderRadius: 6,
                     padding: 10,
-                    background: emptyRequired ? '#fef2f2' : '#fff',
+                    background: emptyRequired ? '#fff7ed' : '#fdfaf4',
                   }}>
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
@@ -1421,7 +1553,13 @@ function GeneratedRequestsSection({
                   </label>
                 )
               })}
+              {missingRequiredFields.length > 0 && (
+                <p className="muted">
+                  Обязательные поля без значения: {missingRequiredFields.map(item => item.field.title).join(', ')}.
+                </p>
+              )}
               <div className="row">
+                <button type="button" className="outline" onClick={() => setWizardStep('SELECT')} disabled={wizardBusy}>Назад</button>
                 <button type="button" onClick={saveGeneratedDraft} disabled={wizardBusy}>Сохранить черновик</button>
                 <button type="button" onClick={previewGenerated} disabled={wizardBusy}>Продолжить</button>
                 <button type="button" className="outline" onClick={() => setWizardOpen(false)}>Отмена</button>
@@ -1451,7 +1589,7 @@ function GeneratedRequestsSection({
                   <div><button onClick={saveFinalText} disabled={wizardBusy}>Сохранить текст</button></div>
                 </>
               ) : (
-                <div style={{ border: '1px solid #d1d5db', padding: 20, background: '#fff' }}>
+                <div style={{ border: '1px solid #d0c4b0', padding: 20, background: '#fffdf8' }}>
                   {(currentGenerated.generated_blocks ?? []).map((block, index) => (
                     <div key={index} style={previewBlockStyle(block.block_type)}>
                       <div style={{ whiteSpace: 'pre-wrap' }}>{block.content}</div>
@@ -1461,6 +1599,7 @@ function GeneratedRequestsSection({
               )}
 
               <div className="row">
+                <button className="outline" onClick={() => setWizardStep('FIELDS')} disabled={wizardBusy}>Назад</button>
                 <button onClick={saveGeneratedDraft} disabled={wizardBusy}>Сохранить черновик</button>
                 <button onClick={loadAvailableAttachments} disabled={wizardBusy}>Продолжить к приложениям</button>
               </div>
@@ -1471,7 +1610,7 @@ function GeneratedRequestsSection({
             <div className="col">
               <h3>Приложения и экспорт</h3>
               {selectedTemplate.attachments.length > 0 && (
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 12 }}>
+                <div style={{ border: '1px solid #ddd4c0', borderRadius: 6, padding: 12 }}>
                   <strong>Требуемые приложения по шаблону</strong>
                   <ul style={{ marginTop: 8, paddingLeft: 20 }}>
                     {selectedTemplate.attachments.map(item => (
@@ -1514,6 +1653,7 @@ function GeneratedRequestsSection({
                 </table>
               )}
               <div className="row">
+                <button className="outline" onClick={() => setWizardStep('PREVIEW')} disabled={wizardBusy}>Назад</button>
                 <button onClick={saveGeneratedAttachments} disabled={wizardBusy}>Сохранить приложения</button>
                 <button onClick={exportGenerated} disabled={wizardBusy}>Сохранить как подготовленный документ</button>
                 <button className="outline" onClick={() => changeGeneratedStatus('PREPARED')} disabled={wizardBusy}>Подготовлено</button>
@@ -1526,11 +1666,109 @@ function GeneratedRequestsSection({
                 {currentGenerated.exported_at && <span className="badge">Экспорт: {formatDateTime(currentGenerated.exported_at)}</span>}
                 {currentGenerated.sent_at && <span className="badge">Направлено: {formatDateTime(currentGenerated.sent_at)}</span>}
               </div>
+              {['PREPARED', 'EXPORTED'].includes(currentGenerated.status) && (
+                <p className="muted">
+                  После фактической отправки обращения в архив отметьте его как направленное вне системы.
+                </p>
+              )}
             </div>
           )}
         </section>
       )}
     </div>
+  )
+}
+
+const WIZARD_STEPS = [
+  ['SELECT', 'Шаблон'],
+  ['FIELDS', 'Поля'],
+  ['PREVIEW', 'Предпросмотр'],
+  ['ATTACHMENTS', 'Приложения'],
+]
+
+const WIZARD_STEP_TITLE = {
+  SELECT: 'Выберите шаблон обращения',
+  FIELDS: 'Заполните данные обращения',
+  PREVIEW: 'Проверьте текст документа',
+  ATTACHMENTS: 'Выберите приложения и зафиксируйте обращение',
+}
+
+const WIZARD_STEP_HINT = {
+  SELECT: 'Генеалог выбирает только активный шаблон. Настройки шаблона здесь не редактируются.',
+  FIELDS: 'Поля сформированы по выбранному шаблону. Автозаполненные значения можно проверить и при необходимости исправить.',
+  PREVIEW: 'Документ собран из блоков шаблона. Итоговый текст можно отредактировать без изменения самого шаблона.',
+  ATTACHMENTS: 'Выберите документы из профиля или запроса. Экспорт фиксирует обращение в системе, но отправка в архив выполняется вне системы.',
+}
+
+function generatedRequestHint(item) {
+  if (item.status === 'DRAFT') return 'Сейчас это черновик. Заполните поля, проверьте текст и сохраните обращение как подготовленный документ.'
+  if (item.status === 'PREPARED') return 'Обращение подготовлено. Отправьте его в архив вне системы и отметьте как направленное.'
+  if (item.status === 'EXPORTED') return 'Обращение экспортировано. После фактической отправки отметьте его как направленное вне системы.'
+  if (item.status === 'SENT_OUTSIDE_SYSTEM') return 'Обращение направлено вне системы. После получения ответа зафиксируйте результат обработки запроса.'
+  if (item.status === 'RESPONSE_RECEIVED') return 'Ответ по обращению получен. Перенесите важные сведения в результат обработки запроса.'
+  if (item.status === 'CANCELLED') return 'Обращение отменено.'
+  return ''
+}
+
+function GeneratedDocumentsTable({ title, items, formatDateTime, openGenerated, changeGeneratedStatus }) {
+  return (
+    <section className="card">
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3>{title}</h3>
+        <span className="badge">{items.length}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Шаблон</th>
+            <th>Статус</th>
+            <th>Создано</th>
+            <th>Изменено</th>
+            <th>Экспорт</th>
+            <th>Направлено</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => (
+            <tr key={item.id}>
+              <td>
+                <strong>{item.template_title_snapshot}</strong>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {TEMPLATE_TYPE_LABEL[item.template_type_snapshot] ?? item.template_type_snapshot}
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{generatedRequestHint(item)}</div>
+              </td>
+              <td>
+                <span className={`badge ${String(item.status).toLowerCase()}`}>
+                  {GENERATED_STATUS_LABEL[item.status] ?? item.status}
+                </span>
+              </td>
+              <td className="muted">{formatDateTime(item.created_at)}</td>
+              <td className="muted">{formatDateTime(item.updated_at)}</td>
+              <td className="muted">{formatDateTime(item.exported_at)}</td>
+              <td className="muted">{formatDateTime(item.sent_at)}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <button
+                  className="outline sm"
+                  onClick={() => openGenerated(item.id, item.status === 'DRAFT' ? 'FIELDS' : 'PREVIEW')}
+                >
+                  {item.status === 'DRAFT' ? 'Продолжить черновик' : 'Открыть'}
+                </button>
+                <button
+                  className="outline sm"
+                  style={{ marginLeft: 6 }}
+                  onClick={() => changeGeneratedStatus('SENT_OUTSIDE_SYSTEM', item.id)}
+                  disabled={!['PREPARED', 'EXPORTED', 'SENT_OUTSIDE_SYSTEM'].includes(item.status)}
+                >
+                  Отметить направленным
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   )
 }
 

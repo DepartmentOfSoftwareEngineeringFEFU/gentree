@@ -16,6 +16,10 @@ from app.repositories.person import PersonRepository
 from app.repositories.profile import ProfileRepository
 
 
+def _is_genealogist(user: User) -> bool:
+    return getattr(user, "role", None) == UserRole.GENEALOGIST
+
+
 class PersonService:
     def __init__(self, db: AsyncSession) -> None:
         self.person_repo = PersonRepository(db)
@@ -73,7 +77,7 @@ class PersonService:
         return person
 
     async def create(self, profile_id: UUID, data: PersonCreate, user: User) -> Person:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         await self._assert_profile_access(profile_id, user)
         return await self.person_repo.create(profile_id=profile_id, **data.model_dump())
@@ -86,7 +90,7 @@ class PersonService:
         return await self._get_person_with_access(person_id, user)
 
     async def update(self, person_id: UUID, data: PersonUpdate, user: User) -> Person:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         person = await self._get_person_with_access(person_id, user)
         updates = data.model_dump(exclude_unset=True)
@@ -98,7 +102,7 @@ class PersonService:
         return await self.person_repo.update(person, **updates)
 
     async def delete(self, person_id: UUID, user: User) -> None:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         person = await self._get_person_with_access(person_id, user)
         await self.person_repo.delete(person)

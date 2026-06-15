@@ -1051,7 +1051,7 @@ function routeUnions(model, personPositions, familyPositions, rectangles, option
         labelY: laneY - 12,
       },
       style: union.former
-        ? { stroke: '#6b7280', strokeWidth: 1.75, strokeDasharray: '6 4' }
+        ? { stroke: '#7a6e62', strokeWidth: 1.75, strokeDasharray: '6 4' }
         : { stroke: '#b85450', strokeWidth: 2 },
       zIndex: union.former ? 10 : 1,
     })
@@ -1149,8 +1149,8 @@ function routeParents(model, personPositions, familyPositions, rectangles, optio
       labelY: route.laneY - 10,
     },
     style: route.other
-      ? { stroke: '#9ca3af', strokeWidth: 1.5, strokeDasharray: '5 3' }
-      : { stroke: '#6b7280', strokeWidth: 1.5 },
+      ? { stroke: '#c0b8aa', strokeWidth: 1.5, strokeDasharray: '5 3' }
+      : { stroke: '#7a6e62', strokeWidth: 1.5 },
   }))
 }
 
@@ -1197,7 +1197,7 @@ function routeSiblingEdges(model, personPositions, rectangles, options) {
       labelX: (route.sourceX + route.targetX) / 2,
       labelY: route.laneY - 10,
     },
-    style: { stroke: '#9ca3af', strokeWidth: 1.5, strokeDasharray: '5 3' },
+    style: { stroke: '#c0b8aa', strokeWidth: 1.5, strokeDasharray: '5 3' },
   }))
 }
 
@@ -1281,10 +1281,10 @@ function routeOtherEdges(model, personPositions, rectangles, invalidIds, options
           points,
           labelX,
           labelY,
-          labelStyle: { fontSize: 10, fill: conflict ? '#dc2626' : '#6b7280' },
+          labelStyle: { fontSize: 10, fill: conflict ? '#9b3030' : '#7a6e62' },
         },
         style: {
-          stroke: conflict ? '#dc2626' : '#9ca3af',
+          stroke: conflict ? '#9b3030' : '#c0b8aa',
           strokeWidth: conflict ? 2 : 1.5,
           strokeDasharray: conflict ? '3 3' : '5 3',
         },

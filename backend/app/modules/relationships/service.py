@@ -57,6 +57,10 @@ def would_create_parent_cycle(
     return False
 
 
+def _is_genealogist(user: User) -> bool:
+    return getattr(user, "role", None) == UserRole.GENEALOGIST
+
+
 class RelationshipService:
     def __init__(self, db: AsyncSession) -> None:
         self.repo = RelationshipRepository(db)
@@ -95,7 +99,7 @@ class RelationshipService:
         return person
 
     async def create(self, profile_id: UUID, data: RelationshipCreate, user: User) -> Relationship:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         await self._assert_profile_access(profile_id, user)
         await self._get_person_in_profile(data.source_person_id, profile_id)
@@ -109,7 +113,7 @@ class RelationshipService:
                 data.target_person_id,
             ):
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail="Parent-child relationship would create a cycle",
                 )
 
@@ -145,7 +149,7 @@ class RelationshipService:
         return await self.repo.get_by_profile(profile_id)
 
     async def update(self, relationship_id: UUID, data: RelationshipUpdate, user: User) -> Relationship:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         rel = await self._get_rel_with_access(relationship_id, user)
         updates = data.model_dump(exclude_none=True)
@@ -154,7 +158,7 @@ class RelationshipService:
         return await self.repo.update(rel, **updates)
 
     async def delete(self, relationship_id: UUID, user: User) -> None:
-        if user.role == UserRole.GENEALOGIST:
+        if _is_genealogist(user):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         rel = await self._get_rel_with_access(relationship_id, user)
         await self.repo.delete(rel)

@@ -132,7 +132,7 @@ function PersonSidebar({ summary, person, loading, error, onClose, onOpen }) {
         minHeight: 0,
       }}>
         {loading ? (
-          <div style={{ color: '#6b7280', fontSize: 13 }}>Загрузка информации...</div>
+          <div style={{ color: '#7a6e62', fontSize: 13 }}>Загрузка информации...</div>
         ) : error ? (
           <div className="error">{error}</div>
         ) : person ? (
@@ -242,7 +242,7 @@ function PersonNode({ data }) {
         <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {data.name}
         </div>
-        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>{data.years || '-'}</div>
+        <div style={{ fontSize: 10, color: '#7a6e62', marginTop: 2 }}>{data.years || '-'}</div>
       </div>
     </div>
   )
@@ -274,9 +274,9 @@ function RoutedEdge({ id, label, style, data }) {
       label={label}
       labelX={data?.labelX}
       labelY={data?.labelY}
-      labelStyle={data?.labelStyle || { fontSize: 10, fill: '#6b7280' }}
+      labelStyle={data?.labelStyle || { fontSize: 10, fill: '#7a6e62' }}
       labelShowBg={Boolean(label)}
-      labelBgStyle={{ fill: '#ffffff', fillOpacity: 1 }}
+      labelBgStyle={{ fill: '#fdfaf4', fillOpacity: 1 }}
       labelBgPadding={[4, 2]}
       style={style}
     />
@@ -460,11 +460,11 @@ export default function TreePage() {
         )}
         <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {loading ? (
-            <div style={{ padding: 24, color: '#6b7280' }}>Загрузка...</div>
+            <div style={{ padding: 24, color: '#7a6e62' }}>Загрузка...</div>
           ) : error ? (
             <div className="error" style={{ padding: 24 }}>{error}</div>
           ) : nodes.filter(node => node.type === 'person').length === 0 ? (
-            <div style={{ padding: 24, color: '#6b7280' }}>Нет персон в профиле.</div>
+            <div style={{ padding: 24, color: '#7a6e62' }}>Нет персон в профиле.</div>
           ) : (
             <ReactFlow
               nodes={displayedNodes}

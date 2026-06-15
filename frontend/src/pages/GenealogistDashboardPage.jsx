@@ -4,7 +4,7 @@ import { api } from '../api'
 import { useAuth } from '../App'
 
 const STATUS_LABEL = {
-  DRAFT: 'Подготовлен',
+  DRAFT: 'Черновик',
   PREPARED: 'Подготовлен',
   SENT: 'Направлен',
   IN_PROGRESS: 'В обработке',

@@ -111,7 +111,7 @@ function AppHeader() {
             {unread > 0 && (
               <span style={{
                 position: 'absolute', top: -4, right: -4,
-                background: '#ef4444', color: '#fff', borderRadius: '50%',
+                background: '#9b3030', color: '#fff', borderRadius: '50%',
                 fontSize: 10, width: 16, height: 16,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700,
@@ -124,13 +124,13 @@ function AppHeader() {
           {open && (
             <div style={{
               position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-              background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+              background: '#fdfaf4', border: '1px solid #ddd4c0', borderRadius: 8,
               boxShadow: '0 4px 16px rgba(0,0,0,.1)', width: 340,
               maxHeight: 400, overflowY: 'auto', zIndex: 200,
             }}>
               <div style={{
                 padding: '10px 16px',
-                borderBottom: '1px solid #e5e7eb',
+                borderBottom: '1px solid #ddd4c0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -144,21 +144,21 @@ function AppHeader() {
                 )}
               </div>
               {notifs.length === 0 ? (
-                <p style={{ padding: 16, color: '#6b7280', textAlign: 'center' }}>Нет уведомлений</p>
+                <p style={{ padding: 16, color: '#7a6e62', textAlign: 'center' }}>Нет уведомлений</p>
               ) : (
                 notifs.map(n => (
                   <div
                     key={n.id}
                     onClick={() => !n.read_at && markRead(n.id)}
                     style={{
-                      padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
-                      background: n.read_at ? '#fff' : '#f0e8d8',
+                      padding: '10px 16px', borderBottom: '1px solid #f0ece4',
+                      background: n.read_at ? '#fdfaf4' : '#f0e8d8',
                       cursor: n.read_at ? 'default' : 'pointer',
                     }}
                   >
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{n.title}</div>
-                    <div style={{ color: '#6b7280', fontSize: 12, margin: '2px 0' }}>{n.body}</div>
-                    <div style={{ color: '#9ca3af', fontSize: 11 }}>
+                    <div style={{ color: '#7a6e62', fontSize: 12, margin: '2px 0' }}>{n.body}</div>
+                    <div style={{ color: '#c0b8aa', fontSize: 11 }}>
                       {NOTIF_TYPE_LABEL[n.notification_type] ?? n.notification_type}
                       {' · '}
                       {new Date(n.created_at).toLocaleString('ru')}

@@ -4,7 +4,7 @@ import { api } from '../api'
 import { useAuth } from '../App'
 
 const STATUS_LABEL = {
-  DRAFT: 'Подготовлен',
+  DRAFT: 'Черновик',
   PREPARED: 'Подготовлен',
   SENT: 'Направлен',
   IN_PROGRESS: 'В обработке',
@@ -27,7 +27,7 @@ const STATUS_FILTERS = [
 
 const USER_STATUS_LABEL = {
   ACTIVE: 'Активен',
-  BLOCKED: 'Отстранен',
+  BLOCKED: 'Отстранён',
 }
 
 const TEMPLATE_TYPE_LABEL = {
@@ -83,6 +83,22 @@ function fullName(user) {
   return [user.last_name, user.first_name, user.middle_name].filter(Boolean).join(' ') || user.email
 }
 
+function SummaryItem({ label, value }) {
+  return (
+    <div style={{
+      minWidth: 170,
+      flex: '1 1 170px',
+      border: '1px solid #ddd4c0',
+      borderRadius: 7,
+      padding: 12,
+      background: '#fdfaf4',
+    }}>
+      <div className="label">{label}</div>
+      <strong style={{ fontSize: 22 }}>{value}</strong>
+    </div>
+  )
+}
+
 const EMPTY_GENEALOGIST = {
   email: '',
   password: '',
@@ -109,6 +125,7 @@ export default function AdminDashboardPage() {
   const [genealogistSort, setGenealogistSort] = useState('NAME')
   const [assigningId, setAssigningId] = useState('')
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -116,6 +133,7 @@ export default function AdminDashboardPage() {
 
     setLoading(true)
     setError('')
+    setMessage('')
     Promise.all([
       api.allRequests(),
       api.unassignedRequests(),
@@ -196,6 +214,24 @@ export default function AdminDashboardPage() {
     ])),
     [genealogists, requests],
   )
+  const requestSummary = useMemo(() => {
+    const activeAssigned = requests.filter(req =>
+      req.assigned_genealogist_user_id
+      && !TERMINAL_REQUEST_STATUSES.has(req.current_status)
+    ).length
+    const needsClarification = requests.filter(req =>
+      req.current_status === 'NEEDS_CLARIFICATION'
+    ).length
+    const completed = requests.filter(req => req.current_status === 'COMPLETED').length
+    const problematicUnassigned = unassigned.filter(req => req.current_status !== 'PREPARED').length
+    return {
+      unassigned: unassigned.length,
+      activeAssigned,
+      needsClarification,
+      completed,
+      problematicUnassigned,
+    }
+  }, [requests, unassigned])
 
   const selectAssignee = (requestId, genealogistId) => {
     setSelectedAssignees(prev => ({ ...prev, [requestId]: genealogistId }))
@@ -204,8 +240,20 @@ export default function AdminDashboardPage() {
   const assignRequest = async (requestId) => {
     const genealogistId = selectedAssignees[requestId]
     if (!genealogistId) return
+    const req = requests.find(item => item.id === requestId) || unassigned.find(item => item.id === requestId)
+    const previousAssignee = req?.assigned_genealogist_user_id
+      ? genealogistById[req.assigned_genealogist_user_id]
+      : null
+    const nextAssignee = genealogistById[genealogistId]
+    if (previousAssignee && previousAssignee.id !== genealogistId) {
+      const confirmed = window.confirm(
+        `Переназначить запрос «${req.title}» с ${fullName(previousAssignee)} на ${fullName(nextAssignee)}?`,
+      )
+      if (!confirmed) return
+    }
 
     setError('')
+    setMessage('')
     setAssigningId(requestId)
     try {
       const updated = await api.assignRequest(requestId, { genealogist_user_id: genealogistId })
@@ -216,6 +264,7 @@ export default function AdminDashboardPage() {
         delete next[requestId]
         return next
       })
+      setMessage(previousAssignee ? 'Запрос переназначен.' : 'Запрос назначен.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -234,6 +283,7 @@ export default function AdminDashboardPage() {
   const createGenealogist = async (e) => {
     e.preventDefault()
     setError('')
+    setMessage('')
     try {
       const created = await api.createGenealogist({
         email: genealogistForm.email,
@@ -246,6 +296,7 @@ export default function AdminDashboardPage() {
       setGenealogists(prev => [...prev, created].sort((a, b) => fullName(a).localeCompare(fullName(b), 'ru')))
       setGenealogistForm(EMPTY_GENEALOGIST)
       setShowGenealogistForm(false)
+      setMessage('Генеалог добавлен в активный состав.')
     } catch (err) {
       setError(err.message)
     }
@@ -264,6 +315,7 @@ export default function AdminDashboardPage() {
 
   const saveEdit = async (genealogistId) => {
     setError('')
+    setMessage('')
     try {
       const updated = await api.updateUser(genealogistId, {
         email: editForm.email,
@@ -275,6 +327,7 @@ export default function AdminDashboardPage() {
       setGenealogists(prev => prev.map(g => g.id === updated.id ? updated : g))
       setEditingId('')
       setEditForm({})
+      setMessage('Данные генеалога сохранены.')
     } catch (err) {
       setError(err.message)
     }
@@ -282,7 +335,15 @@ export default function AdminDashboardPage() {
 
   const toggleStatus = async (genealogist) => {
     const nextStatus = genealogist.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE'
+    const actionText = nextStatus === 'BLOCKED' ? 'отстранить' : 'вернуть в активный состав'
+    const consequence = nextStatus === 'BLOCKED'
+      ? ' Активные запросы этого генеалога останутся без исполнителя.'
+      : ''
+    if (!window.confirm(`Вы действительно хотите ${actionText} генеалога ${fullName(genealogist)}?${consequence}`)) {
+      return
+    }
     setError('')
+    setMessage('')
     try {
       const updated = await api.updateUser(genealogist.id, { status: nextStatus })
       setGenealogists(prev => prev.map(g => g.id === updated.id ? updated : g))
@@ -294,6 +355,9 @@ export default function AdminDashboardPage() {
         setRequests(allRequests)
         setUnassigned(unassignedRequests)
       }
+      setMessage(nextStatus === 'BLOCKED'
+        ? 'Генеалог отстранён от работы.'
+        : 'Генеалог возвращён в активный состав.')
     } catch (err) {
       setError(err.message)
     }
@@ -332,6 +396,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {error && <p className="error" style={{ marginBottom: 12 }}>{error}</p>}
+      {message && <p className="success" style={{ marginBottom: 12 }}>{message}</p>}
 
       {loading ? (
         <p className="muted">Загрузка...</p>
@@ -340,9 +405,26 @@ export default function AdminDashboardPage() {
           {adminSection === 'REQUESTS' && (
             <>
           <section className="card">
+            <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+              <SummaryItem label="Без исполнителя" value={requestSummary.unassigned} />
+              <SummaryItem label="Активные назначенные" value={requestSummary.activeAssigned} />
+              <SummaryItem label="Требуют доп. сведений" value={requestSummary.needsClarification} />
+              <SummaryItem label="Завершённые" value={requestSummary.completed} />
+            </div>
+            {requestSummary.problematicUnassigned > 0 && (
+              <p className="muted" style={{ marginTop: 10 }}>
+                {requestSummary.problematicUnassigned} запрос(ов) уже были в обработке, но сейчас не имеют исполнителя.
+              </p>
+            )}
+          </section>
+
+          <section className="card">
             <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
               <h2>Запросы без исполнителя</h2>
               <div className="row" style={{ gap: 8 }}>
+                {activeGenealogists.length === 0 && (
+                  <span className="badge cancelled">Нет активных генеалогов</span>
+                )}
                 {unassigned.some(req => req.current_status !== 'PREPARED') && (
                   <span className="badge needs_clarification">
                     Есть запросы после отстранения
@@ -490,7 +572,7 @@ export default function AdminDashboardPage() {
                         <td>
                           {assignee ? fullName(assignee) : '—'}
                           {assignee?.status === 'BLOCKED' && (
-                            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Отстранен от работы</div>
+                            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Отстранён от работы</div>
                           )}
                         </td>
                         <td>
@@ -703,6 +785,7 @@ function TemplatesAdmin() {
   const [dictionary, setDictionary] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [filters, setFilters] = useState({ template_type: 'ALL', status_filter: 'ALL', search: '' })
   const [draft, setDraft] = useState(null)
   const [activeTab, setActiveTab] = useState('INFO')
@@ -783,11 +866,13 @@ function TemplatesAdmin() {
     setActiveTab('INFO')
     setShowFieldPicker(false)
     setError('')
+    setMessage('')
     scrollToTemplateEditor()
   }
 
   const startEdit = async (templateId) => {
     setError('')
+    setMessage('')
     try {
       const template = await api.getTemplate(templateId)
       setDraft(toTemplateDraft(template))
@@ -808,6 +893,7 @@ function TemplatesAdmin() {
 
     setSaving(true)
     setError('')
+    setMessage('')
     try {
       const payload = toTemplatePayload(draft)
       const saved = draft.id
@@ -815,6 +901,7 @@ function TemplatesAdmin() {
         : await api.createTemplate(payload)
       setDraft(toTemplateDraft(saved))
       await loadTemplates()
+      setMessage(draft.id ? 'Шаблон сохранён.' : 'Шаблон создан.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -824,31 +911,55 @@ function TemplatesAdmin() {
 
   const duplicateTemplate = async (templateId) => {
     setError('')
+    setMessage('')
     try {
-      await api.duplicateTemplate(templateId)
+      const duplicated = await api.duplicateTemplate(templateId)
       await loadTemplates()
+      setMessage('Копия шаблона создана и отключена для проверки.')
+      setDraft(toTemplateDraft(duplicated))
+      setActiveTab('INFO')
+      setShowFieldPicker(false)
+      scrollToTemplateEditor()
     } catch (err) {
       setError(err.message)
     }
   }
 
   const toggleTemplate = async (templateId) => {
+    const template = templates.find(item => item.id === templateId)
+    if (template?.is_active) {
+      const confirmed = window.confirm(
+        `Отключить шаблон «${template.name}»? Генеалог больше не увидит его при формировании архивного обращения.`,
+      )
+      if (!confirmed) return
+    } else if (template && !window.confirm(`Включить шаблон «${template.name}»?`)) {
+      return
+    }
     setError('')
+    setMessage('')
     try {
-      await api.toggleTemplate(templateId)
+      const updated = await api.toggleTemplate(templateId)
       await loadTemplates()
+      if (draft?.id === templateId) setDraft(toTemplateDraft(updated))
+      setMessage(updated.is_active ? 'Шаблон включён.' : 'Шаблон отключён.')
     } catch (err) {
       setError(err.message)
     }
   }
 
   const deleteTemplate = async (templateId) => {
-    if (!window.confirm('Удалить шаблон? Если он уже использовался, он будет скрыт и отключен.')) return
+    const template = templates.find(item => item.id === templateId)
+    const name = template ? ` «${template.name}»` : ''
+    if (!window.confirm(`Удалить шаблон${name}? Если он уже использовался, он будет скрыт и отключён.`)) return
     setError('')
+    setMessage('')
     try {
-      await api.deleteTemplate(templateId)
+      const result = await api.deleteTemplate(templateId)
       if (draft?.id === templateId) setDraft(null)
       await loadTemplates()
+      setMessage(result?.soft_deleted
+        ? 'Шаблон уже использовался, поэтому он отключён и скрыт.'
+        : 'Шаблон удалён.')
     } catch (err) {
       setError(err.message)
     }
@@ -902,6 +1013,7 @@ function TemplatesAdmin() {
   const createCustomField = async (e) => {
     e.preventDefault()
     setError('')
+    setMessage('')
     try {
       const created = await api.createFieldDictionary({
         ...customField,
@@ -911,6 +1023,7 @@ function TemplatesAdmin() {
       setDictionary(prev => [...prev, created].sort((a, b) => a.title.localeCompare(b.title, 'ru')))
       addFieldToDraft(created)
       setCustomField({ title: '', code: '', description: '', data_type: 'text', category: 'custom' })
+      setMessage('Пользовательское поле создано и добавлено в шаблон.')
     } catch (err) {
       setError(err.message)
     }
@@ -988,6 +1101,7 @@ function TemplatesAdmin() {
   return (
     <div className="col" style={{ gap: 18 }}>
       {error && <p className="error">{error}</p>}
+      {message && <p className="success">{message}</p>}
       <section className="card" style={{ order: draft ? 2 : 1 }}>
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
           <h2>Шаблоны архивных запросов</h2>
@@ -1010,7 +1124,7 @@ function TemplatesAdmin() {
           >
             <option value="ALL">Все статусы</option>
             <option value="ACTIVE">Активные</option>
-            <option value="DISABLED">Отключенные</option>
+            <option value="DISABLED">Отключённые</option>
           </select>
           <input
             value={filters.search}
@@ -1060,8 +1174,8 @@ function TemplatesAdmin() {
                   <td style={{ textAlign: 'center' }}>{template.fields_count}</td>
                   <td style={{ textAlign: 'center' }}>{template.blocks_count}</td>
                   <td>
-                    <span className={`badge ${template.is_active ? 'active' : 'blocked'}`}>
-                      {template.is_active ? 'Активен' : 'Отключен'}
+                        <span className={`badge ${template.is_active ? 'active' : 'blocked'}`}>
+                      {template.is_active ? 'Активен' : 'Отключён'}
                     </span>
                   </td>
                   <td>{formatDate(template.created_at)}</td>
@@ -1167,7 +1281,7 @@ function TemplatesAdmin() {
               </div>
 
               {showFieldPicker && (
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 12 }}>
+                <div style={{ border: '1px solid #ddd4c0', borderRadius: 6, padding: 12 }}>
                   <div className="row" style={{ marginBottom: 10 }}>
                     <input
                       value={fieldFilter.search}
@@ -1302,7 +1416,7 @@ function TemplatesAdmin() {
               </div>
 
               {draft.blocks.map((block, index) => (
-                <div key={index} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 12 }}>
+                <div key={index} style={{ border: '1px solid #ddd4c0', borderRadius: 6, padding: 12 }}>
                   <div className="row" style={{ alignItems: 'flex-start' }}>
                     <div className="col" style={{ flex: 1 }}>
                       <div className="row">
@@ -1514,7 +1628,7 @@ function TemplatePreview({ draft, fieldCodeMap }) {
   return (
     <div className="col" style={{ gap: 14 }}>
       <h3>Предпросмотр будущего документа</h3>
-      <div style={{ background: '#fff', border: '1px solid #d1d5db', padding: 24, minHeight: 420 }}>
+      <div style={{ background: '#fffdf8', border: '1px solid #d0c4b0', padding: 24, minHeight: 420 }}>
         {activeBlocks.map((block, index) => (
           <div key={index} style={previewBlockStyle(block.block_type)}>
             {block.title && block.block_type === 'CUSTOM_BLOCK' && <strong>{block.title}</strong>}

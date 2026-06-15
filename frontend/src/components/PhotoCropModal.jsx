@@ -46,7 +46,7 @@ export default function PhotoCropModal({ imageSrc, onSave, onCancel }) {
       justifyContent: 'center', zIndex: 1000,
     }}>
       <div style={{
-        background: '#fff', borderRadius: 12, overflow: 'hidden',
+        background: '#fdfaf4', borderRadius: 12, overflow: 'hidden',
         width: 420, display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ position: 'relative', height: 360, background: '#111' }}>
@@ -63,7 +63,7 @@ export default function PhotoCropModal({ imageSrc, onSave, onCancel }) {
           />
         </div>
         <div style={{ padding: '12px 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: 12, color: '#6b7280' }}>
+          <label style={{ fontSize: 12, color: '#7a6e62' }}>
             Масштаб
             <input
               type="range" min={1} max={3} step={0.05} value={zoom}
@@ -73,14 +73,14 @@ export default function PhotoCropModal({ imageSrc, onSave, onCancel }) {
           </label>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={onCancel} style={{
-              padding: '7px 18px', borderRadius: 6, border: '1px solid #d1d5db',
-              background: '#fff', cursor: 'pointer', fontSize: 13,
+              padding: '7px 18px', borderRadius: 6, border: '1px solid #d0c4b0',
+              background: '#fdfaf4', cursor: 'pointer', fontSize: 13,
             }}>
               Отмена
             </button>
             <button onClick={handleSave} disabled={saving} style={{
               padding: '7px 18px', borderRadius: 6, border: 'none',
-              background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13,
+              background: '#7c5c3b', color: '#fff', cursor: 'pointer', fontSize: 13,
               opacity: saving ? 0.6 : 1,
             }}>
               {saving ? 'Сохранение…' : 'Сохранить'}

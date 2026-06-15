@@ -195,7 +195,7 @@ const addFact = async (e) => {
               overflow: 'hidden',
             }}
           >
-            {!person.photo_url && <span style={{ fontSize: 28, color: '#9ca3af' }}>+</span>}
+            {!person.photo_url && <span style={{ fontSize: 28, color: '#c0b8aa' }}>+</span>}
           </div>
           {person.photo_url && (
             <button

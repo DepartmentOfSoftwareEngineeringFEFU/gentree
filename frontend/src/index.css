@@ -172,7 +172,7 @@ hr { border: none; border-top: 1px solid #ddd4c0; margin: 16px 0; }
   white-space: nowrap;
 }
 .badge.draft               { background: #ede8e0; color: #6b5745; }
-.badge.prepared            { background: #dbeafe; color: #1d4ed8; }
+.badge.prepared            { background: #e8ddd0; color: #4a3828; }
 .badge.sent                { background: #e8e0f5; color: #5b3fa0; }
 .badge.in_progress         { background: #fef3c7; color: #92400e; }
 .badge.needs_clarification { background: #ffedd5; color: #9a3412; }
