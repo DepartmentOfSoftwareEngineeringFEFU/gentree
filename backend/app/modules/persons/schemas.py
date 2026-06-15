@@ -10,6 +10,7 @@ class PersonCreate(BaseModel):
     last_name: str
     first_name: str
     middle_name: str | None = None
+    maiden_name: str | None = None
     sex: PersonSex = PersonSex.UNKNOWN
     birth_date: date | None = None
     death_date: date | None = None
@@ -31,6 +32,7 @@ class PersonUpdate(BaseModel):
     last_name: str | None = None
     first_name: str | None = None
     middle_name: str | None = None
+    maiden_name: str | None = None
     sex: PersonSex | None = None
     birth_date: date | None = None
     death_date: date | None = None
@@ -47,6 +49,7 @@ class PersonRead(BaseModel):
     last_name: str
     first_name: str
     middle_name: str | None
+    maiden_name: str | None
     sex: PersonSex
     birth_date: date | None
     death_date: date | None
@@ -54,5 +57,6 @@ class PersonRead(BaseModel):
     death_place: str | None
     notes: str | None
     is_living: bool
+    photo_url: str | None
     created_at: datetime
     updated_at: datetime

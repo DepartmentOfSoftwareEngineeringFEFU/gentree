@@ -134,6 +134,7 @@ export default function RequestDetailPage() {
   const [clarificationBusy, setClarificationBusy] = useState(false)
   const [editingReq, setEditingReq] = useState(false)
   const [editReqForm, setEditReqForm] = useState({})
+  const [fileName, setFileName] = useState('')
   const [resultForm, setResultForm] = useState({
     processing_comment: '',
     result_summary: '',
@@ -319,6 +320,7 @@ export default function RequestDetailPage() {
       const doc = await api.uploadDoc(fd)
       setDocs(prev => [doc, ...prev])
       fileRef.current.value = ''
+      setFileName('')
     } catch (err) { setError(err.message) }
   }
 

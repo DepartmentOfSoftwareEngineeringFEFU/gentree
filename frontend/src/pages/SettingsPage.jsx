@@ -51,54 +51,56 @@ export default function SettingsPage() {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 20, justifyContent: 'space-between' }}>
-        <span className="link" onClick={() => nav('/')}>← Исследования</span>
+      <div className="settings-content">
+        <div className="row" style={{ marginBottom: 20 }}>
+          <span className="link" onClick={() => nav('/')}>← Исследования</span>
+        </div>
+
+        <h1 style={{ marginBottom: 20 }}>Настройки профиля</h1>
+
+        <form onSubmit={submit} className="card col settings-form">
+          <h3>Личные данные</h3>
+          <div className="settings-form__grid settings-form__grid--name">
+            <div className="col">
+              <label className="label">Фамилия</label>
+              <input value={form.last_name} onChange={f('last_name')} />
+            </div>
+            <div className="col">
+              <label className="label">Имя</label>
+              <input value={form.first_name} onChange={f('first_name')} />
+            </div>
+            <div className="col">
+              <label className="label">Отчество</label>
+              <input value={form.middle_name} onChange={f('middle_name')} />
+            </div>
+          </div>
+          <div className="settings-form__grid settings-form__grid--birth">
+            <div className="col">
+              <label className="label">Дата рождения</label>
+              <input type="date" value={form.birth_date} onChange={f('birth_date')} />
+            </div>
+            <div className="col">
+              <label className="label">Место рождения</label>
+              <input value={form.birth_place} onChange={f('birth_place')} />
+            </div>
+          </div>
+          <div className="col">
+            <label className="label">Регион происхождения</label>
+            <input value={form.region} onChange={f('region')} />
+          </div>
+          <div className="col">
+            <label className="label">Примечания</label>
+            <textarea value={form.notes} onChange={f('notes')} rows={3} />
+          </div>
+
+          {error && <p className="error">{error}</p>}
+          {saved && <p className="success">Сохранено.</p>}
+
+          <div className="row">
+            <button type="submit">Сохранить</button>
+          </div>
+        </form>
       </div>
-
-      <h1 style={{ marginBottom: 20 }}>Настройки профиля</h1>
-
-      <form onSubmit={submit} className="card col" style={{ maxWidth: 560 }}>
-        <h3>Личные данные</h3>
-        <div className="row">
-          <div className="col" style={{ flex: 1 }}>
-            <label className="label">Фамилия</label>
-            <input value={form.last_name} onChange={f('last_name')} />
-          </div>
-          <div className="col" style={{ flex: 1 }}>
-            <label className="label">Имя</label>
-            <input value={form.first_name} onChange={f('first_name')} />
-          </div>
-          <div className="col" style={{ flex: 1 }}>
-            <label className="label">Отчество</label>
-            <input value={form.middle_name} onChange={f('middle_name')} />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col" style={{ flex: 1 }}>
-            <label className="label">Дата рождения</label>
-            <input type="date" value={form.birth_date} onChange={f('birth_date')} />
-          </div>
-          <div className="col" style={{ flex: 1 }}>
-            <label className="label">Место рождения</label>
-            <input value={form.birth_place} onChange={f('birth_place')} />
-          </div>
-        </div>
-        <div className="col">
-          <label className="label">Регион происхождения</label>
-          <input value={form.region} onChange={f('region')} />
-        </div>
-        <div className="col">
-          <label className="label">Примечания</label>
-          <textarea value={form.notes} onChange={f('notes')} rows={3} />
-        </div>
-
-        {error && <p className="error">{error}</p>}
-        {saved && <p style={{ color: '#16a34a' }}>Сохранено.</p>}
-
-        <div className="row">
-          <button type="submit">Сохранить</button>
-        </div>
-      </form>
     </div>
   )
 }

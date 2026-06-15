@@ -18,6 +18,45 @@ from app.repositories.profile import ProfileRepository
 from app.repositories.relationship import RelationshipRepository
 
 
+def is_parent_layout_relationship(relationship) -> bool:
+    return (
+        relationship.relationship_type == RelationshipType.PARENT_CHILD
+        or (
+            relationship.relationship_type == RelationshipType.OTHER
+            and relationship.layout_as == "PARENT_CHILD"
+        )
+    )
+
+
+def would_create_parent_cycle(
+    relationships,
+    parent_id: UUID,
+    child_id: UUID,
+) -> bool:
+    if parent_id == child_id:
+        return True
+
+    children_by_parent: dict[UUID, list[UUID]] = {}
+    for relationship in relationships:
+        if not is_parent_layout_relationship(relationship):
+            continue
+        children_by_parent.setdefault(relationship.source_person_id, []).append(
+            relationship.target_person_id
+        )
+
+    stack = [child_id]
+    visited: set[UUID] = set()
+    while stack:
+        person_id = stack.pop()
+        if person_id == parent_id:
+            return True
+        if person_id in visited:
+            continue
+        visited.add(person_id)
+        stack.extend(children_by_parent.get(person_id, []))
+    return False
+
+
 class RelationshipService:
     def __init__(self, db: AsyncSession) -> None:
         self.repo = RelationshipRepository(db)
@@ -61,6 +100,18 @@ class RelationshipService:
         await self._assert_profile_access(profile_id, user)
         await self._get_person_in_profile(data.source_person_id, profile_id)
         await self._get_person_in_profile(data.target_person_id, profile_id)
+
+        if is_parent_layout_relationship(data):
+            existing_relationships = await self.repo.get_by_profile(profile_id)
+            if would_create_parent_cycle(
+                existing_relationships,
+                data.source_person_id,
+                data.target_person_id,
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Parent-child relationship would create a cycle",
+                )
 
         if data.relationship_type == RelationshipType.PARENT_CHILD:
             count_result = await self.db.execute(
@@ -139,6 +190,8 @@ class RelationshipService:
                 is_living=p.is_living,
                 birth_date=p.birth_date,
                 death_date=p.death_date,
+                photo_url=p.photo_url,
+                created_at=p.created_at,
             )
             for p in persons
         ]

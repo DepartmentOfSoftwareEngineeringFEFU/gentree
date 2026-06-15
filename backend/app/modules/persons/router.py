@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -64,3 +64,26 @@ async def delete_person(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     await PersonService(db).delete(person_id, current_user)
+
+
+@router.delete("/persons/{person_id}/photo", response_model=PersonRead)
+async def delete_person_photo(
+    person_id: UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PersonRead:
+    person = await PersonService(db).delete_photo(person_id, current_user)
+    return PersonRead.model_validate(person)
+
+
+@router.post("/persons/{person_id}/photo", response_model=PersonRead)
+async def upload_person_photo(
+    person_id: UUID,
+    file: UploadFile,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PersonRead:
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image")
+    person = await PersonService(db).upload_photo(person_id, file, current_user)
+    return PersonRead.model_validate(person)

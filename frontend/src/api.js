@@ -52,6 +52,19 @@ export const api = {
   getPerson: (id)        => req('GET', `/persons/${id}`),
   updatePerson: (id,d)   => req('PATCH', `/persons/${id}`, d),
   deletePerson: (id)     => req('DELETE', `/persons/${id}`),
+  deletePersonPhoto: (id) => req('DELETE', `/persons/${id}/photo`),
+  uploadPersonPhoto: async (id, blob) => {
+    const form = new FormData()
+    form.append('file', blob, 'photo.jpg')
+    const res = await fetch(`${BASE}/persons/${id}/photo`, {
+      method: 'POST',
+      headers: token() ? { Authorization: `Bearer ${token()}` } : {},
+      body: form,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`)
+    return data
+  },
 
   // relationships
   createRelationship: (pid,d) => req('POST', `/profiles/${pid}/relationships`, d),
@@ -125,7 +138,7 @@ export const api = {
   availableGeneratedAttachments: (id) => req('GET', `/genealogist/generated-documents/${id}/available-attachments`),
 
   // books
-  createBook: (pid)  => req('POST', `/profiles/${pid}/book`),
+  createBook: (pid,d) => req('POST', `/profiles/${pid}/book`, d),
   listBooks: (pid)   => req('GET', `/profiles/${pid}/books`),
 
   // documents

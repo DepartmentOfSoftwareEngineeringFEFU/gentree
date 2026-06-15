@@ -29,6 +29,11 @@ class Settings(BaseSettings):
 
     upload_dir: str = "./uploads"
 
+    yandex_api_key: str | None = None
+    yandex_folder_id: str | None = None
+    yandex_model: str = "yandexgpt"
+    yandex_model_version: str = "rc"
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
@@ -45,4 +50,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-

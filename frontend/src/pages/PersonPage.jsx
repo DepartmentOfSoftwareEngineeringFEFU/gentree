@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
+import PhotoCropModal from '../components/PhotoCropModal'
 import { useAuth } from '../App'
 
 const FACT_TYPES = ['BIRTH','DEATH','MARRIAGE','RESIDENCE','SERVICE','NOTE']
@@ -16,6 +17,8 @@ const SEX_LABELS_EDIT = { MALE: 'Мужской', FEMALE: 'Женский', UNKN
 export default function PersonPage() {
   const { profileId, personId } = useParams()
   const nav = useNavigate()
+  const { state } = useLocation()
+  const fromTree = state?.from === 'tree'
   const { user } = useAuth()
   const [person, setPerson] = useState(null)
   const [facts, setFacts] = useState([])
@@ -30,6 +33,8 @@ export default function PersonPage() {
   const [editForm, setEditForm] = useState({})
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [cropSrc, setCropSrc] = useState(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     api.getPerson(personId).then(setPerson)
@@ -42,6 +47,7 @@ export default function PersonPage() {
       last_name:   person.last_name   ?? '',
       first_name:  person.first_name  ?? '',
       middle_name: person.middle_name ?? '',
+      maiden_name: person.maiden_name ?? '',
       sex:         person.sex         ?? 'UNKNOWN',
       birth_date:  person.birth_date  ?? '',
       death_date:  person.death_date  ?? '',
@@ -63,6 +69,7 @@ export default function PersonPage() {
         last_name:   editForm.last_name   || null,
         first_name:  editForm.first_name  || null,
         middle_name: editForm.middle_name || null,
+        maiden_name: editForm.maiden_name || null,
         sex:         editForm.sex,
         birth_date:  editForm.birth_date  || null,
         death_date:  editForm.death_date  || null,
@@ -82,6 +89,29 @@ export default function PersonPage() {
   }
 
   const ef = (k) => (e) => setEditForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+    e.target.value = ''
+  }
+
+  const handleCropSave = async (blob) => {
+    URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    await api.uploadPersonPhoto(personId, blob)
+    const fresh = await api.getPerson(personId)
+    setPerson(fresh)
+  }
+
+  const handleDeletePhoto = async (e) => {
+    e.stopPropagation()
+    if (!confirm('Удалить фото?')) return
+    const updated = await api.deletePersonPhoto(personId)
+    setPerson(updated)
+  }
 
   const fullName = (p) =>
     [p.last_name, p.first_name, p.middle_name].filter(Boolean).join(' ') || '—'
@@ -144,30 +174,81 @@ const addFact = async (e) => {
 
   return (
     <div className="page">
-      <div className="row" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
-        <span className="link" onClick={() => nav(`/profiles/${profileId}`)}>← Профиль</span>
-        {!readOnly && (
-          <button className="danger sm" onClick={async () => {
-            if (!confirm('Удалить персону?')) return
-            await api.deletePerson(personId)
-            nav(`/profiles/${profileId}`)
-          }}>Удалить персону</button>
-        )}
+      <div className="row" style={{ marginBottom: 16 }}>
+        <span className="link" onClick={() => nav(-1)}>{fromTree ? '← Дерево' : '← Профиль'}</span>
       </div>
 
       <div className="row" style={{ alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ marginBottom: 4 }}>{fullName(person)}</h1>
-          <p className="muted">
+        {/* Circular photo */}
+        <div style={{ position: 'relative', flexShrink: 0, width: 80, height: 80 }}>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            title="Нажмите, чтобы изменить фото"
+            style={{
+              width: 80, height: 80, borderRadius: '50%',
+              backgroundColor: '#e8ddd0',
+              backgroundImage: person.photo_url ? `url(${person.photo_url})` : 'none',
+              backgroundSize: 'cover', backgroundPosition: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              border: person.photo_url ? '2px solid #ddd4c0' : '2px dashed #c0b8aa',
+              overflow: 'hidden',
+            }}
+          >
+            {!person.photo_url && <span style={{ fontSize: 28, color: '#9ca3af' }}>+</span>}
+          </div>
+          {person.photo_url && (
+            <button
+              type="button"
+              onClick={handleDeletePhoto}
+              title="Удалить фото"
+              style={{
+                position: 'absolute', top: 0, right: 0,
+                width: 22, height: 22, minWidth: 0, borderRadius: '50%',
+                background: '#9b3030', color: '#fff',
+                border: '2px solid #fdfaf4',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', padding: 0,
+              }}
+            >
+              <svg width="6" height="6" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+              </svg>
+            </button>
+          )}
+        </div>
+        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>{fullName(person)}</h1>
+            <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+              {!readOnly && !editing && <button className="outline sm" onClick={startEdit}>Редактировать</button>}
+              {!readOnly && (
+                <button className="danger sm" onClick={async () => {
+                  if (!confirm('Удалить персону?')) return
+                  await api.deletePerson(personId)
+                  nav(`/profiles/${profileId}`)
+                }}>Удалить персону</button>
+              )}
+            </div>
+          </div>
+          <p className="muted" style={{ marginTop: 4 }}>
             {SEX_LABEL[person.sex]}
             {person.birth_date && ` · р. ${person.birth_date}`}
             {person.death_date && ` · ум. ${person.death_date}`}
             {person.birth_place && ` · ${person.birth_place}`}
           </p>
-          {person.notes && <p style={{ marginTop: 6, fontSize: 13, color: '#374151' }}>{person.notes}</p>}
         </div>
-        {!readOnly && <button className="outline sm" onClick={startEdit}>Редактировать</button>}
       </div>
+
+      {cropSrc && (
+        <PhotoCropModal
+          imageSrc={cropSrc}
+          onSave={handleCropSave}
+          onCancel={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null) }}
+        />
+      )}
 
       {!readOnly && editing && (
         <form onSubmit={saveEdit} className="card col" style={{ marginBottom: 20 }}>
@@ -186,6 +267,12 @@ const addFact = async (e) => {
               <input value={editForm.middle_name} onChange={ef('middle_name')} />
             </div>
           </div>
+          {editForm.sex === 'FEMALE' && (
+            <div className="col">
+              <label className="label">Девичья фамилия</label>
+              <input value={editForm.maiden_name} onChange={ef('maiden_name')} />
+            </div>
+          )}
           <div className="row">
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Пол</label>
@@ -195,21 +282,11 @@ const addFact = async (e) => {
             </div>
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Дата рождения</label>
-              <input type="date" value={editForm.birth_date} onChange={ef('birth_date')} />
+              <input value={editForm.birth_date} onChange={ef('birth_date')} type="date" />
             </div>
-            <div className="col" style={{ flex: 1 }}>
-              <label className="label">Дата смерти</label>
-              <input type="date" value={editForm.death_date} onChange={ef('death_date')} />
-            </div>
-          </div>
-          <div className="row">
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Место рождения</label>
               <input value={editForm.birth_place} onChange={ef('birth_place')} />
-            </div>
-            <div className="col" style={{ flex: 1 }}>
-              <label className="label">Место смерти</label>
-              <input value={editForm.death_place} onChange={ef('death_place')} />
             </div>
           </div>
           <div className="row" style={{ alignItems: 'center', gap: 8 }}>
@@ -218,6 +295,18 @@ const addFact = async (e) => {
               onChange={e => setEditForm(f => ({ ...f, is_living: e.target.checked }))} />
             <label htmlFor="is_living" style={{ fontSize: 13 }}>Ещё жив</label>
           </div>
+          {!editForm.is_living && (
+            <div className="row">
+              <div className="col" style={{ flex: 1 }}>
+                <label className="label">Дата смерти</label>
+                <input value={editForm.death_date} onChange={ef('death_date')} type="date" />
+              </div>
+              <div className="col" style={{ flex: 1 }}>
+                <label className="label">Место смерти</label>
+                <input value={editForm.death_place} onChange={ef('death_place')} />
+              </div>
+            </div>
+          )}
           <div className="col">
             <label className="label">Примечания</label>
             <textarea value={editForm.notes} onChange={ef('notes')} rows={2} />

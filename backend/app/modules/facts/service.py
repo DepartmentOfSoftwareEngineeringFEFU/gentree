@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -21,10 +21,7 @@ class FactService:
 
     async def _get_person_with_access(self, person_id: UUID, user: User) -> Person:
         result = await self.db.execute(
-            select(Person)
-            .join(ProfilePerson, ProfilePerson.person_id == Person.id)
-            .join(Profile, ProfilePerson.profile_id == Profile.id)
-            .where(Person.id == person_id)
+            select(Person).where(Person.id == person_id)
         )
         person = result.scalars().first()
         if not person:
@@ -85,7 +82,7 @@ class FactService:
         if updates.get("confidence") == FactConfidence.CONFIRMED:
             if user.role in (UserRole.GENEALOGIST, UserRole.ADMIN):
                 updates["verified_by_user_id"] = user.id
-                updates["verified_at"] = datetime.now(timezone.utc)
+                updates["verified_at"] = datetime.now(UTC)
 
         return await self.repo.update(fact, **updates)
 

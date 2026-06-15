@@ -79,24 +79,32 @@ function AppHeader() {
 
   return (
     <header style={{
-      height: 48, background: '#fff', borderBottom: '1px solid #e5e7eb',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      height: 48, background: '#0a1f44', borderBottom: '1px solid #162e5e',
+      display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
       padding: '0 24px', position: 'sticky', top: 0, zIndex: 100,
     }}>
       <span
         onClick={() => nav('/')}
-        style={{ fontWeight: 700, fontSize: 18, cursor: 'pointer', color: '#6366f1' }}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontWeight: 700,
+          fontSize: 18,
+          cursor: 'pointer',
+          color: '#f5f0e1',
+        }}
       >
-        Gentree
+        dinastia
       </span>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         {/* Bell */}
         <div style={{ position: 'relative' }} ref={panelRef}>
           <button
-            className="outline sm"
+            className="outline sm on-dark"
             onClick={openPanel}
-            style={{ position: 'relative', padding: '4px 10px' }}
+            style={{ position: 'relative' }}
             title="Уведомления"
           >
             🔔
@@ -144,7 +152,7 @@ function AppHeader() {
                     onClick={() => !n.read_at && markRead(n.id)}
                     style={{
                       padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
-                      background: n.read_at ? '#fff' : '#eff6ff',
+                      background: n.read_at ? '#fff' : '#f0e8d8',
                       cursor: n.read_at ? 'default' : 'pointer',
                     }}
                   >
@@ -163,19 +171,19 @@ function AppHeader() {
         </div>
 
         {user?.role === 'GENEALOGIST' && (
-          <button className="outline sm" onClick={() => nav('/genealogist')}>
+          <button className="outline sm on-dark" onClick={() => nav('/genealogist')}>
             Рабочий стол
           </button>
         )}
         {user?.role === 'ADMIN' && (
-          <button className="outline sm" onClick={() => nav('/admin')}>
+          <button className="outline sm on-dark" onClick={() => nav('/admin')}>
             Панель администратора
           </button>
         )}
-        <button className="outline sm" onClick={() => nav('/settings')}>
+        <button className="outline sm on-dark" onClick={() => nav('/settings')}>
           {userName || 'Настройки'}
         </button>
-        <button className="outline sm" onClick={logout}>Выйти</button>
+        <button className="outline sm on-dark" onClick={logout}>Выйти</button>
       </div>
     </header>
   )
