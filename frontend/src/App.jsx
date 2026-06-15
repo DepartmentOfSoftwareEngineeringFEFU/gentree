@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { api } from './api'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import AuthPage from './pages/AuthPage'
+import GenealogistDashboardPage from './pages/GenealogistDashboardPage'
 import PersonPage from './pages/PersonPage'
 import ProfilePage from './pages/ProfilePage'
 import ProfilesPage from './pages/ProfilesPage'
@@ -13,6 +15,7 @@ const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
 const NOTIF_TYPE_LABEL = {
+  REQUEST_ASSIGNED: 'Назначение запроса',
   REQUEST_STATUS_CHANGED: 'Статус запроса изменён',
   REQUEST_NEEDS_CLARIFICATION: 'Запрос уточнений',
   DOCUMENT_UPLOADED: 'Документ загружен',
@@ -59,6 +62,14 @@ function AppHeader() {
       await api.markRead(id)
       setNotifs(prev => prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
       setUnread(prev => Math.max(0, prev - 1))
+    } catch {}
+  }
+
+  const markAllRead = async () => {
+    try {
+      await api.markAllRead()
+      setNotifs(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })))
+      setUnread(0)
     } catch {}
   }
 
@@ -117,8 +128,20 @@ function AppHeader() {
               boxShadow: '0 4px 16px rgba(0,0,0,.1)', width: 340,
               maxHeight: 400, overflowY: 'auto', zIndex: 200,
             }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 14 }}>
-                Уведомления
+              <div style={{
+                padding: '10px 16px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}>
+                <strong style={{ fontSize: 14 }}>Уведомления</strong>
+                {unread > 0 && (
+                  <button className="outline sm" onClick={markAllRead}>
+                    Прочитать все
+                  </button>
+                )}
               </div>
               {notifs.length === 0 ? (
                 <p style={{ padding: 16, color: '#6b7280', textAlign: 'center' }}>Нет уведомлений</p>
@@ -147,6 +170,16 @@ function AppHeader() {
           )}
         </div>
 
+        {user?.role === 'GENEALOGIST' && (
+          <button className="outline sm on-dark" onClick={() => nav('/genealogist')}>
+            Рабочий стол
+          </button>
+        )}
+        {user?.role === 'ADMIN' && (
+          <button className="outline sm on-dark" onClick={() => nav('/admin')}>
+            Панель администратора
+          </button>
+        )}
         <button className="outline sm on-dark" onClick={() => nav('/settings')}>
           {userName || 'Настройки'}
         </button>
@@ -159,6 +192,14 @@ function AppHeader() {
 function Guard({ children }) {
   const { token } = useAuth()
   return token ? children : <Navigate to="/auth" replace />
+}
+
+function RoleHome() {
+  const { user } = useAuth()
+  if (!user) return <div className="page muted">Загрузка...</div>
+  if (user.role === 'GENEALOGIST') return <Navigate to="/genealogist" replace />
+  if (user.role === 'ADMIN') return <Navigate to="/admin" replace />
+  return <ProfilesPage />
 }
 
 export default function App() {
@@ -187,7 +228,9 @@ export default function App() {
         {token && <AppHeader />}
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/" element={<Guard><ProfilesPage /></Guard>} />
+          <Route path="/" element={<Guard><RoleHome /></Guard>} />
+          <Route path="/genealogist" element={<Guard><GenealogistDashboardPage /></Guard>} />
+          <Route path="/admin" element={<Guard><AdminDashboardPage /></Guard>} />
           <Route path="/profiles/:id" element={<Guard><ProfilePage /></Guard>} />
           <Route path="/profiles/:profileId/persons/:personId" element={<Guard><PersonPage /></Guard>} />
           <Route path="/profiles/:id/tree" element={<Guard><TreePage /></Guard>} />

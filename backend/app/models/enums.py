@@ -10,7 +10,6 @@ class UserRole(str, enum.Enum):
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     BLOCKED = "BLOCKED"
-    PENDING_VERIFICATION = "PENDING_VERIFICATION"
 
 
 class ProfileStatus(str, enum.Enum):
@@ -53,8 +52,59 @@ class ArchiveRequestStatus(str, enum.Enum):
     PREPARED = "PREPARED"
     SENT = "SENT"
     IN_PROGRESS = "IN_PROGRESS"
+    NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
     RESPONSE_RECEIVED = "RESPONSE_RECEIVED"
     COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class ArchiveTemplateType(str, enum.Enum):
+    GENERAL_ARCHIVE = "GENERAL_ARCHIVE"
+    MILITARY_ARCHIVE = "MILITARY_ARCHIVE"
+    CIVIL_REGISTRY = "CIVIL_REGISTRY"
+    MEDICAL_ARCHIVE = "MEDICAL_ARCHIVE"
+    PERSONNEL_ARCHIVE = "PERSONNEL_ARCHIVE"
+    RESIDENCE_PROPERTY_ARCHIVE = "RESIDENCE_PROPERTY_ARCHIVE"
+    CUSTOM = "CUSTOM"
+
+
+class TemplateFieldDataType(str, enum.Enum):
+    TEXT = "text"
+    TEXTAREA = "textarea"
+    DATE = "date"
+    YEAR = "year"
+    NUMBER = "number"
+    SELECT = "select"
+    CHECKBOX = "checkbox"
+
+
+class TemplateFieldCategory(str, enum.Enum):
+    PERSON = "person"
+    APPLICANT = "applicant"
+    ARCHIVE = "archive"
+    MILITARY = "military"
+    MEDICAL = "medical"
+    RESIDENCE = "residence"
+    DOCUMENT = "document"
+    CUSTOM = "custom"
+
+
+class ArchiveTemplateBlockType(str, enum.Enum):
+    HEADER_RIGHT = "HEADER_RIGHT"
+    HEADER_LEFT = "HEADER_LEFT"
+    TITLE = "TITLE"
+    BODY = "BODY"
+    ATTACHMENTS = "ATTACHMENTS"
+    FOOTER = "FOOTER"
+    CUSTOM_BLOCK = "CUSTOM_BLOCK"
+
+
+class GeneratedArchiveRequestStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PREPARED = "PREPARED"
+    EXPORTED = "EXPORTED"
+    SENT_OUTSIDE_SYSTEM = "SENT_OUTSIDE_SYSTEM"
+    RESPONSE_RECEIVED = "RESPONSE_RECEIVED"
     CANCELLED = "CANCELLED"
 
 
@@ -74,6 +124,7 @@ class DocumentSourceType(str, enum.Enum):
 
 
 class NotificationType(str, enum.Enum):
+    REQUEST_ASSIGNED = "REQUEST_ASSIGNED"
     REQUEST_STATUS_CHANGED = "REQUEST_STATUS_CHANGED"
     REQUEST_NEEDS_CLARIFICATION = "REQUEST_NEEDS_CLARIFICATION"
     DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED"

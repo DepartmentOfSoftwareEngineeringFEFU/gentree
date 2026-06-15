@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.archive_request import ArchiveRequest
 from app.models.enums import RelationshipType, UserRole
 from app.models.profile import Person, ProfilePerson, Relationship
 from app.models.user import User
@@ -66,8 +67,18 @@ class RelationshipService:
         profile = await self.profile_repo.get_by_id(profile_id)
         if not profile:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        if user.role != UserRole.ADMIN and profile.owner_user_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        if user.role == UserRole.ADMIN or profile.owner_user_id == user.id:
+            return
+        if user.role == UserRole.GENEALOGIST:
+            result = await self.db.execute(
+                select(ArchiveRequest.id).where(
+                    ArchiveRequest.profile_id == profile_id,
+                    ArchiveRequest.assigned_genealogist_user_id == user.id,
+                )
+            )
+            if result.scalars().first() is not None:
+                return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     async def _get_person_in_profile(self, person_id: UUID, profile_id: UUID) -> Person:
         result = await self.db.execute(
@@ -84,6 +95,8 @@ class RelationshipService:
         return person
 
     async def create(self, profile_id: UUID, data: RelationshipCreate, user: User) -> Relationship:
+        if user.role == UserRole.GENEALOGIST:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         await self._assert_profile_access(profile_id, user)
         await self._get_person_in_profile(data.source_person_id, profile_id)
         await self._get_person_in_profile(data.target_person_id, profile_id)
@@ -131,12 +144,9 @@ class RelationshipService:
         await self._assert_profile_access(profile_id, user)
         return await self.repo.get_by_profile(profile_id)
 
-    async def update(
-        self,
-        relationship_id: UUID,
-        data: RelationshipUpdate,
-        user: User,
-    ) -> Relationship:
+    async def update(self, relationship_id: UUID, data: RelationshipUpdate, user: User) -> Relationship:
+        if user.role == UserRole.GENEALOGIST:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         rel = await self._get_rel_with_access(relationship_id, user)
         updates = data.model_dump(exclude_none=True)
         if not updates:
@@ -144,6 +154,8 @@ class RelationshipService:
         return await self.repo.update(rel, **updates)
 
     async def delete(self, relationship_id: UUID, user: User) -> None:
+        if user.role == UserRole.GENEALOGIST:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         rel = await self._get_rel_with_access(relationship_id, user)
         await self.repo.delete(rel)
 

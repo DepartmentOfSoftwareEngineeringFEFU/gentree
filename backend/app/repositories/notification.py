@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
@@ -39,11 +39,21 @@ class NotificationRepository(SQLAlchemyRepository[Notification]):
         await self.session.refresh(notification)
         return notification
 
+    async def mark_all_read(self, user_id: UUID) -> int:
+        from datetime import datetime, timezone
+        result = await self.session.execute(
+            update(Notification)
+            .where(Notification.recipient_user_id == user_id, Notification.read_at.is_(None))
+            .values(read_at=datetime.now(timezone.utc))
+        )
+        await self.session.commit()
+        return result.rowcount or 0
+
     async def count_unread(self, user_id: UUID) -> int:
         result = await self.session.execute(
-            select(Notification).where(
+            select(func.count()).select_from(Notification).where(
                 Notification.recipient_user_id == user_id,
                 Notification.read_at.is_(None),
             )
         )
-        return len(result.scalars().all())
+        return int(result.scalar_one())

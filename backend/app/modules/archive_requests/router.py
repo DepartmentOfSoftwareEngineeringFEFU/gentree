@@ -10,6 +10,8 @@ from app.modules.archive_requests.schemas import (
     ArchiveRequestRead,
     ArchiveRequestUpdate,
     AssigneeRequest,
+    ClarificationRequest,
+    ClarificationResponse,
     StatusChangeRequest,
     StatusHistoryRead,
 )
@@ -42,6 +44,33 @@ async def list_archive_requests(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[ArchiveRequestRead]:
     reqs = await ArchiveRequestService(db).list_by_profile(profile_id, current_user)
+    return [ArchiveRequestRead.model_validate(r) for r in reqs]
+
+
+@router.get("/archive-requests/assigned/me", response_model=list[ArchiveRequestRead])
+async def list_my_assigned_archive_requests(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ArchiveRequestRead]:
+    reqs = await ArchiveRequestService(db).list_assigned_to_me(current_user)
+    return [ArchiveRequestRead.model_validate(r) for r in reqs]
+
+
+@router.get("/archive-requests/unassigned", response_model=list[ArchiveRequestRead])
+async def list_unassigned_archive_requests(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ArchiveRequestRead]:
+    reqs = await ArchiveRequestService(db).list_unassigned(current_user)
+    return [ArchiveRequestRead.model_validate(r) for r in reqs]
+
+
+@router.get("/archive-requests", response_model=list[ArchiveRequestRead])
+async def list_all_archive_requests(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ArchiveRequestRead]:
+    reqs = await ArchiveRequestService(db).list_all(current_user)
     return [ArchiveRequestRead.model_validate(r) for r in reqs]
 
 
@@ -88,6 +117,53 @@ async def change_status(
     return ArchiveRequestRead.model_validate(req)
 
 
+@router.post(
+    "/archive-requests/{request_id}/request-clarification",
+    response_model=ArchiveRequestRead,
+)
+async def request_clarification(
+    request_id: UUID,
+    body: ClarificationRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ArchiveRequestRead:
+    req = await ArchiveRequestService(db).request_clarification(
+        request_id, body.comment, current_user
+    )
+    await NotificationService(db).send(
+        recipient_user_id=req.created_by_user_id,
+        notification_type=NotificationType.REQUEST_NEEDS_CLARIFICATION,
+        title="Требуются дополнительные сведения",
+        body=body.comment,
+        related_archive_request_id=req.id,
+    )
+    return ArchiveRequestRead.model_validate(req)
+
+
+@router.post(
+    "/archive-requests/{request_id}/provide-clarification",
+    response_model=ArchiveRequestRead,
+)
+async def provide_clarification(
+    request_id: UUID,
+    body: ClarificationResponse,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ArchiveRequestRead:
+    req = await ArchiveRequestService(db).provide_clarification(
+        request_id, body.comment, current_user
+    )
+    if req.assigned_genealogist_user_id:
+        await NotificationService(db).send(
+            recipient_user_id=req.assigned_genealogist_user_id,
+            notification_type=NotificationType.REQUEST_STATUS_CHANGED,
+            title="Пользователь предоставил дополнительные сведения",
+            body=body.comment or f"По запросу «{req.title}» переданы дополнительные сведения.",
+            related_archive_request_id=req.id,
+        )
+    return ArchiveRequestRead.model_validate(req)
+
+
 @router.patch("/archive-requests/{request_id}/assignee", response_model=ArchiveRequestRead)
 async def assign_genealogist(
     request_id: UUID,
@@ -96,6 +172,13 @@ async def assign_genealogist(
     db: AsyncSession = Depends(get_db_session),
 ) -> ArchiveRequestRead:
     req = await ArchiveRequestService(db).assign(request_id, body.genealogist_user_id, current_user)
+    await NotificationService(db).send(
+        recipient_user_id=body.genealogist_user_id,
+        notification_type=NotificationType.REQUEST_ASSIGNED,
+        title="Назначен архивный запрос",
+        body=f"Вам назначен запрос «{req.title}».",
+        related_archive_request_id=req.id,
+    )
     return ArchiveRequestRead.model_validate(req)
 
 

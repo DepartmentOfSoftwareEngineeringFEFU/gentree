@@ -30,6 +30,15 @@ async def unread_count(
     return UnreadCountRead(count=count)
 
 
+@router.patch("/read-all", response_model=UnreadCountRead)
+async def mark_all_read(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UnreadCountRead:
+    await NotificationService(db).mark_all_read(current_user)
+    return UnreadCountRead(count=0)
+
+
 @router.patch("/{notification_id}/read", response_model=NotificationRead)
 async def mark_read(
     notification_id: UUID,

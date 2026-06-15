@@ -9,7 +9,6 @@ from app.models.enums import ArchiveRequestStatus
 class ArchiveRequestCreate(BaseModel):
     title: str
     request_goal: str | None = None
-    requested_archive_name: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -22,12 +21,32 @@ class ArchiveRequestCreate(BaseModel):
 class ArchiveRequestUpdate(BaseModel):
     title: str | None = None
     request_goal: str | None = None
-    requested_archive_name: str | None = None
+    processing_comment: str | None = None
+    result_summary: str | None = None
+    found_information: str | None = None
+    result_sources: str | None = None
+    result_recommendations: str | None = None
+    result_status: str | None = None
     outgoing_number: str | None = None
 
 
 class StatusChangeRequest(BaseModel):
     new_status: ArchiveRequestStatus
+    comment: str | None = None
+
+
+class ClarificationRequest(BaseModel):
+    comment: str
+
+    @field_validator("comment")
+    @classmethod
+    def comment_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Comment cannot be empty")
+        return v.strip()
+
+
+class ClarificationResponse(BaseModel):
     comment: str | None = None
 
 
@@ -45,8 +64,13 @@ class ArchiveRequestRead(BaseModel):
     template_id: UUID | None
     title: str
     request_goal: str | None
+    processing_comment: str | None
+    result_summary: str | None
+    found_information: str | None
+    result_sources: str | None
+    result_recommendations: str | None
+    result_status: str | None
     current_status: ArchiveRequestStatus
-    requested_archive_name: str | None
     outgoing_number: str | None
     sent_at: datetime | None
     due_at: datetime | None

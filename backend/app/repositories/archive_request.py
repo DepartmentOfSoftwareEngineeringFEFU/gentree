@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.archive_request import ArchiveRequest, ArchiveRequestStatusHistory
@@ -33,6 +33,55 @@ class ArchiveRequestRepository(SQLAlchemyRepository[ArchiveRequest]):
             .order_by(ArchiveRequest.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def get_by_assignee(self, user_id: UUID) -> list[ArchiveRequest]:
+        result = await self.session.execute(
+            select(ArchiveRequest)
+            .where(ArchiveRequest.assigned_genealogist_user_id == user_id)
+            .order_by(ArchiveRequest.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_all(self) -> list[ArchiveRequest]:
+        result = await self.session.execute(
+            select(ArchiveRequest).order_by(ArchiveRequest.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_unassigned(self) -> list[ArchiveRequest]:
+        terminal_statuses = (
+            ArchiveRequestStatus.COMPLETED,
+            ArchiveRequestStatus.CANCELLED,
+        )
+        result = await self.session.execute(
+            select(ArchiveRequest)
+            .where(
+                ArchiveRequest.assigned_genealogist_user_id.is_(None),
+                ArchiveRequest.current_status.not_in(terminal_statuses),
+            )
+            .order_by(
+                case((ArchiveRequest.current_status == ArchiveRequestStatus.PREPARED, 1), else_=0),
+                ArchiveRequest.updated_at.desc(),
+                ArchiveRequest.created_at.desc(),
+            )
+        )
+        return list(result.scalars().all())
+
+    async def unassign_active_by_assignee(self, user_id: UUID) -> int:
+        terminal_statuses = (
+            ArchiveRequestStatus.COMPLETED,
+            ArchiveRequestStatus.CANCELLED,
+        )
+        result = await self.session.execute(
+            update(ArchiveRequest)
+            .where(
+                ArchiveRequest.assigned_genealogist_user_id == user_id,
+                ArchiveRequest.current_status.not_in(terminal_statuses),
+            )
+            .values(assigned_genealogist_user_id=None)
+        )
+        await self.session.commit()
+        return result.rowcount or 0
 
     async def create(self, **kwargs: object) -> ArchiveRequest:
         req = ArchiveRequest(**kwargs)

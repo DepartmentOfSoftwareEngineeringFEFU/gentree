@@ -31,6 +31,9 @@ class NotificationService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         return await self.repo.mark_read(n)
 
+    async def mark_all_read(self, user: User) -> int:
+        return await self.repo.mark_all_read(user.id)
+
     async def send(
         self,
         recipient_user_id: UUID,

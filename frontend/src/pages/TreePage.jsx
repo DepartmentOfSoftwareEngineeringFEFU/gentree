@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   Background,
   BaseEdge,
@@ -351,6 +351,7 @@ function DiagnosticsBanner({ diagnostics }) {
 export default function TreePage() {
   const { id } = useParams()
   const nav = useNavigate()
+  const location = useLocation()
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [diagnostics, setDiagnostics] = useState([])
@@ -428,7 +429,18 @@ export default function TreePage() {
         gap: 12,
         alignItems: 'baseline',
       }}>
-        <button className="outline sm" onClick={() => nav(`/profiles/${id}`)}>← Назад</button>
+        <button
+          className="outline sm"
+          onClick={() => {
+            const returnTo = location.state?.returnTo
+            const treeBackTo = location.state?.treeBackTo
+            nav(treeBackTo || `/profiles/${id}`, {
+              state: returnTo ? { returnTo } : undefined,
+            })
+          }}
+        >
+          ← Назад
+        </button>
         <strong>Генеалогическое дерево</strong>
         <span style={{ fontSize: 12, color: '#7a6e62' }}>
           Новейшие сверху · Голубой — мужчины · Розовый — женщины · Супруги — красная точка · Пунктир — иные связи

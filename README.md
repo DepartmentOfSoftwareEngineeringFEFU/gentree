@@ -33,6 +33,8 @@ gentree/
 cp .env.example .env
 docker compose up --build
 ```
+docker compose down
+docker compose up -d --build
 
 Документация будет доступна по адресу `http://localhost:8000/docs`.
 

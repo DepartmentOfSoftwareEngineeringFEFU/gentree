@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import PhotoCropModal from '../components/PhotoCropModal'
+import { useAuth } from '../App'
 
 const FACT_TYPES = ['BIRTH','DEATH','MARRIAGE','RESIDENCE','SERVICE','NOTE']
 const FACT_LABELS = { BIRTH:'Рождение', DEATH:'Смерть', MARRIAGE:'Брак', RESIDENCE:'Проживание', SERVICE:'Служба', NOTE:'Заметка' }
@@ -18,6 +19,7 @@ export default function PersonPage() {
   const nav = useNavigate()
   const { state } = useLocation()
   const fromTree = state?.from === 'tree'
+  const { user } = useAuth()
   const [person, setPerson] = useState(null)
   const [facts, setFacts] = useState([])
   const [docs, setDocs] = useState([])
@@ -168,6 +170,7 @@ const addFact = async (e) => {
   const ff = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   if (!person) return <div className="page muted">Загрузка...</div>
+  const readOnly = user?.role === 'GENEALOGIST'
 
   return (
     <div className="page">
@@ -220,12 +223,14 @@ const addFact = async (e) => {
           <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0 }}>{fullName(person)}</h1>
             <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-              {!editing && <button className="outline sm" onClick={startEdit}>Редактировать</button>}
-              <button className="danger sm" onClick={async () => {
-                if (!confirm('Удалить персону?')) return
-                await api.deletePerson(personId)
-                nav(`/profiles/${profileId}`)
-              }}>Удалить персону</button>
+              {!readOnly && !editing && <button className="outline sm" onClick={startEdit}>Редактировать</button>}
+              {!readOnly && (
+                <button className="danger sm" onClick={async () => {
+                  if (!confirm('Удалить персону?')) return
+                  await api.deletePerson(personId)
+                  nav(`/profiles/${profileId}`)
+                }}>Удалить персону</button>
+              )}
             </div>
           </div>
           <p className="muted" style={{ marginTop: 4 }}>
@@ -245,7 +250,7 @@ const addFact = async (e) => {
         />
       )}
 
-      {editing && (
+      {!readOnly && editing && (
         <form onSubmit={saveEdit} className="card col" style={{ marginBottom: 20 }}>
           <h3 style={{ marginBottom: 12 }}>Редактирование персоны</h3>
           <div className="row">
@@ -318,14 +323,16 @@ const addFact = async (e) => {
 
       <div className="row" style={{ justifyContent: 'space-between', margin: '16px 0 12px' }}>
         <h2>Факты</h2>
-        <button onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Отмена' : '+ Добавить факт'}
-        </button>
+        {!readOnly && (
+          <button onClick={() => setShowForm(!showForm)}>
+            {showForm ? 'Отмена' : '+ Добавить факт'}
+          </button>
+        )}
       </div>
 
       {error && <p className="error" style={{ marginBottom: 8 }}>{error}</p>}
 
-      {showForm && (
+      {!readOnly && showForm && (
         <form onSubmit={addFact} className="card col" style={{ marginBottom: 16 }}>
           <div className="row">
             <div className="col" style={{ flex: 1 }}>
@@ -365,10 +372,10 @@ const addFact = async (e) => {
       ) : (
         <table>
           <thead>
-            <tr><th>Тип</th><th>Дата</th><th>Место</th><th>Описание</th><th>Достоверность</th><th></th></tr>
+            <tr><th>Тип</th><th>Дата</th><th>Место</th><th>Описание</th><th>Достоверность</th>{!readOnly && <th></th>}</tr>
           </thead>
           <tbody>
-            {facts.map(f => editingFactId === f.id ? (
+            {facts.map(f => !readOnly && editingFactId === f.id ? (
               <tr key={f.id}>
                 <td>
                   <select value={editFactForm.fact_type} onChange={eff('fact_type')} style={{ fontSize: 12 }}>
@@ -395,10 +402,12 @@ const addFact = async (e) => {
                 <td>{f.place ?? '—'}</td>
                 <td>{f.value_text ?? '—'}</td>
                 <td><span className="badge">{CONF_LABELS[f.confidence]}</span></td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="outline sm" onClick={() => startEditFact(f)} style={{ marginRight: 4 }}>✎</button>
-                  <button className="danger sm" onClick={() => deleteFact(f.id)}>×</button>
-                </td>
+                {!readOnly && (
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="outline sm" onClick={() => startEditFact(f)} style={{ marginRight: 4 }}>✎</button>
+                    <button className="danger sm" onClick={() => deleteFact(f.id)}>×</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
