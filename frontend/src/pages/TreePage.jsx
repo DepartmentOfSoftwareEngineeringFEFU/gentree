@@ -80,61 +80,46 @@ function PersonSidebar({ summary, person, loading, error, onClose, onOpen }) {
       flexDirection: 'column',
       minHeight: 0,
       overflow: 'hidden',
+      position: 'relative',
     }}>
+      <button
+        type="button"
+        className="outline sm"
+        onClick={onClose}
+        title="Закрыть"
+        style={{ position: 'absolute', top: 10, right: 10, minWidth: 0, width: 28, padding: 0, zIndex: 1 }}
+      >
+        <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+        </svg>
+      </button>
       {/* Photo block — shown only when photo exists */}
       {displayedPerson.photo_url && (
-        <div style={{ position: 'relative', flexShrink: 0, padding: '14px 14px 0' }}>
-          <div style={{
-            width: '100%',
-            paddingTop: '100%',
-            borderRadius: 16,
-            backgroundImage: `url(${displayedPerson.photo_url})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }} />
-          <button
-            type="button"
-            onClick={onClose}
-            title="Закрыть"
-            style={{
-              position: 'absolute', top: 22, right: 22,
-              width: 28, height: 28, minWidth: 0, padding: 0, borderRadius: '50%',
-              background: 'rgba(0,0,0,0.45)', color: '#fff',
-              border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-            </svg>
-          </button>
+        <div style={{ flexShrink: 0, padding: '14px 14px 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              width: 'calc((100vh - 96px) / 3)',
+              height: 'calc((100vh - 96px) / 3)',
+              maxWidth: 'calc(clamp(280px, 25vw, 360px) - 28px)',
+              maxHeight: 'calc(clamp(280px, 25vw, 360px) - 28px)',
+              borderRadius: '50%',
+              backgroundImage: `url(${displayedPerson.photo_url})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center top',
+              border: '3px solid #ddd4c0',
+            }} />
+          </div>
         </div>
       )}
 
       {/* Name block */}
       <div style={{
-        padding: '14px 18px 12px',
+        padding: '14px 48px 12px 18px',
         borderBottom: '1px solid #c8bfb0',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 8,
       }}>
-        <div>
-          <div style={{ color: '#1a1208', fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>
-            {formatPersonName(displayedPerson)}
-          </div>
+        <div style={{ color: '#1a1208', fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>
+          {formatPersonName(displayedPerson)}
         </div>
-        {!displayedPerson.photo_url && (
-          <button
-            type="button"
-            className="outline sm"
-            onClick={onClose}
-            title="Закрыть"
-            style={{ minWidth: 32, padding: '4px 8px', flexShrink: 0 }}
-          >×</button>
-        )}
       </div>
 
       <div style={{
@@ -153,6 +138,9 @@ function PersonSidebar({ summary, person, loading, error, onClose, onOpen }) {
         ) : person ? (
           <>
             <SidebarField label="Пол" value={SEX_LABELS[person.sex] || SEX_LABELS.UNKNOWN} />
+            {person.sex === 'FEMALE' && person.maiden_name && (
+              <SidebarField label="Девичья фамилия" value={person.maiden_name} />
+            )}
             <SidebarField label="Дата рождения" value={formatDate(person.birth_date)} />
             <SidebarField label="Место рождения" value={person.birth_place} />
 
@@ -455,7 +443,7 @@ export default function TreePage() {
             loading={personLoading}
             error={personError}
             onClose={closePersonSidebar}
-            onOpen={() => nav(`/profiles/${id}/persons/${selectedPersonId}`)}
+            onOpen={() => nav(`/profiles/${id}/persons/${selectedPersonId}`, { state: { from: 'tree' } })}
           />
         )}
         <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>

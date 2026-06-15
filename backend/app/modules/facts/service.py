@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import FactConfidence, UserRole
 from app.models.fact import Fact
-from app.models.profile import Person, Profile
+from app.models.profile import Person, Profile, ProfilePerson
 from app.models.user import User
 from app.modules.facts.schemas import FactCreate, FactUpdate
 from app.repositories.fact import FactRepository
@@ -20,20 +20,27 @@ class FactService:
 
     async def _get_person_with_access(self, person_id: UUID, user: User) -> Person:
         result = await self.db.execute(
-            select(Person)
-            .join(Profile, Person.profile_id == Profile.id)
-            .where(Person.id == person_id)
+            select(Person).where(Person.id == person_id)
         )
         person = result.scalar_one_or_none()
         if not person:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
 
-        profile_result = await self.db.execute(
-            select(Profile).where(Profile.id == person.profile_id)
-        )
-        profile = profile_result.scalar_one()
-        if user.role != UserRole.ADMIN and profile.owner_user_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        if user.role != UserRole.ADMIN:
+            access_result = await self.db.execute(
+                select(ProfilePerson.id)
+                .join(Profile, ProfilePerson.profile_id == Profile.id)
+                .where(
+                    ProfilePerson.person_id == person.id,
+                    Profile.owner_user_id == user.id,
+                )
+                .limit(1)
+            )
+            if access_result.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied",
+                )
 
         return person
 
@@ -62,7 +69,7 @@ class FactService:
         if updates.get("confidence") == FactConfidence.CONFIRMED:
             if user.role in (UserRole.GENEALOGIST, UserRole.ADMIN):
                 updates["verified_by_user_id"] = user.id
-                updates["verified_at"] = datetime.now(timezone.utc)
+                updates["verified_at"] = datetime.now(UTC)
 
         return await self.repo.update(fact, **updates)
 

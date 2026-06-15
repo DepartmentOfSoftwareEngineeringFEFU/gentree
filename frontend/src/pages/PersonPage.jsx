@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import PhotoCropModal from '../components/PhotoCropModal'
 
@@ -16,6 +16,8 @@ const SEX_LABELS_EDIT = { MALE: 'Мужской', FEMALE: 'Женский', UNKN
 export default function PersonPage() {
   const { profileId, personId } = useParams()
   const nav = useNavigate()
+  const { state } = useLocation()
+  const fromTree = state?.from === 'tree'
   const [person, setPerson] = useState(null)
   const [facts, setFacts] = useState([])
   const [docs, setDocs] = useState([])
@@ -43,6 +45,7 @@ export default function PersonPage() {
       last_name:   person.last_name   ?? '',
       first_name:  person.first_name  ?? '',
       middle_name: person.middle_name ?? '',
+      maiden_name: person.maiden_name ?? '',
       sex:         person.sex         ?? 'UNKNOWN',
       birth_date:  person.birth_date  ?? '',
       death_date:  person.death_date  ?? '',
@@ -64,6 +67,7 @@ export default function PersonPage() {
         last_name:   editForm.last_name   || null,
         first_name:  editForm.first_name  || null,
         middle_name: editForm.middle_name || null,
+        maiden_name: editForm.maiden_name || null,
         sex:         editForm.sex,
         birth_date:  editForm.birth_date  || null,
         death_date:  editForm.death_date  || null,
@@ -168,7 +172,7 @@ const addFact = async (e) => {
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 16 }}>
-        <span className="link" onClick={() => nav(-1)}>← Профиль</span>
+        <span className="link" onClick={() => nav(-1)}>{fromTree ? '← Дерево' : '← Профиль'}</span>
       </div>
 
       <div className="row" style={{ alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
@@ -258,6 +262,12 @@ const addFact = async (e) => {
               <input value={editForm.middle_name} onChange={ef('middle_name')} />
             </div>
           </div>
+          {editForm.sex === 'FEMALE' && (
+            <div className="col">
+              <label className="label">Девичья фамилия</label>
+              <input value={editForm.maiden_name} onChange={ef('maiden_name')} />
+            </div>
+          )}
           <div className="row">
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Пол</label>
@@ -267,7 +277,7 @@ const addFact = async (e) => {
             </div>
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Дата рождения</label>
-              <input type="date" value={editForm.birth_date} onChange={ef('birth_date')} />
+              <input value={editForm.birth_date} onChange={ef('birth_date')} type="date" />
             </div>
             <div className="col" style={{ flex: 1 }}>
               <label className="label">Место рождения</label>
@@ -284,7 +294,7 @@ const addFact = async (e) => {
             <div className="row">
               <div className="col" style={{ flex: 1 }}>
                 <label className="label">Дата смерти</label>
-                <input type="date" value={editForm.death_date} onChange={ef('death_date')} />
+                <input value={editForm.death_date} onChange={ef('death_date')} type="date" />
               </div>
               <div className="col" style={{ flex: 1 }}>
                 <label className="label">Место смерти</label>

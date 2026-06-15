@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 
@@ -25,9 +25,69 @@ const relationshipLabel = (relationship) =>
     : REL_LABEL[relationship.relationship_type] ?? relationship.relationship_type
 
 const EMPTY_PERSON = { last_name: '', first_name: '', middle_name: '', sex: 'UNKNOWN',
-  birth_date: '', death_date: '', birth_place: '', death_place: '', notes: '', is_living: true }
+  birth_date: '', death_date: '', birth_place: '', death_place: '', notes: '', is_living: true, maiden_name: '' }
 const EMPTY_REQ = { title: '', request_goal: '', requested_archive_name: '' }
 const EMPTY_REL = { source_person_id: '', target_person_id: '', relationship_type: 'PARENT_CHILD', notes: '', layout_as: '' }
+
+const fullName = (p) =>
+  [p.last_name, p.first_name, p.middle_name].filter(Boolean).join(' ') || '—'
+
+
+function PersonSelect({ persons, value, onChange, placeholder, exclude }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef()
+
+  const selected = persons.find(p => p.id === value)
+  const filtered = (exclude ? persons.filter(p => p.id !== exclude) : persons)
+    .filter(p => fullName(p).toLowerCase().includes(query.toLowerCase()))
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <input
+        value={open ? query : (selected ? fullName(selected) : '')}
+        onFocus={() => { setOpen(true); setQuery('') }}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        placeholder={placeholder || '— поиск по имени —'}
+        required={!value}
+        style={{ width: '100%' }}
+      />
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: '#fdfaf4', border: '1px solid #d0c4b0', borderRadius: 7,
+          zIndex: 200, maxHeight: 220, overflowY: 'auto',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+        }}>
+          {filtered.length === 0
+            ? <div style={{ padding: '10px 12px', color: '#7a6e62', fontSize: 13 }}>Не найдено</div>
+            : filtered.map(p => (
+              <div
+                key={p.id}
+                onMouseDown={() => { onChange(p.id); setOpen(false); setQuery('') }}
+                style={{
+                  padding: '9px 12px', cursor: 'pointer', fontSize: 14,
+                  background: p.id === value ? '#f0e8d8' : 'transparent',
+                  borderBottom: '1px solid #f0ece4',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f0e8d8'}
+                onMouseLeave={e => e.currentTarget.style.background = p.id === value ? '#f0e8d8' : 'transparent'}
+              >
+                {fullName(p)}
+              </div>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ProfilePage() {
   const { id } = useParams()
@@ -94,18 +154,16 @@ export default function ProfilePage() {
     return () => clearInterval(timer)
   }, [hasActiveBooks, id])
 
-  const fullName = (p) =>
-    [p.last_name, p.first_name, p.middle_name].filter(Boolean).join(' ') || '—'
-
   const personById = (pid) => persons.find(p => p.id === pid)
 
   const addPerson = async (e) => {
     e.preventDefault()
     setError('')
     try {
-      const { last_name, first_name, middle_name, sex, birth_date, death_date, birth_place, death_place, notes, is_living } = personForm
+      const { last_name, first_name, middle_name, maiden_name, sex, birth_date, death_date, birth_place, death_place, notes, is_living } = personForm
       const p = await api.createPerson(id, {
         last_name, first_name, middle_name: middle_name || null,
+        maiden_name: maiden_name || null,
         sex, birth_date: birth_date || null, death_date: death_date || null,
         birth_place: birth_place || null, death_place: death_place || null,
         notes: notes || null, is_living,
@@ -317,6 +375,12 @@ export default function ProfilePage() {
                   <input value={personForm.middle_name} onChange={pf('middle_name')} />
                 </div>
               </div>
+              {personForm.sex === 'FEMALE' && (
+                <div className="col">
+                  <label className="label">Девичья фамилия</label>
+                  <input value={personForm.maiden_name} onChange={pf('maiden_name')} />
+                </div>
+              )}
               <div className="row">
                 <div className="col" style={{ flex: 1 }}>
                   <label className="label">Пол</label>
@@ -326,7 +390,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="col" style={{ flex: 1 }}>
                   <label className="label">Дата рождения</label>
-                  <input type="date" value={personForm.birth_date} onChange={pf('birth_date')} />
+                  <input value={personForm.birth_date} onChange={pf('birth_date')} type="date" />
                 </div>
                 <div className="col" style={{ flex: 1 }}>
                   <label className="label">Место рождения</label>
@@ -343,7 +407,7 @@ export default function ProfilePage() {
                 <div className="row">
                   <div className="col" style={{ flex: 1 }}>
                     <label className="label">Дата смерти</label>
-                    <input type="date" value={personForm.death_date} onChange={pf('death_date')} />
+                    <input value={personForm.death_date} onChange={pf('death_date')} type="date" />
                   </div>
                   <div className="col" style={{ flex: 1 }}>
                     <label className="label">Место смерти</label>
@@ -433,12 +497,11 @@ export default function ProfilePage() {
                       ? 'Старший (отчим, усыновитель…)'
                       : 'Персона 1'}
                   </label>
-                  <select value={relForm.source_person_id} onChange={rlf('source_person_id')} required>
-                    <option value="">— выберите —</option>
-                    {persons.map(p => (
-                      <option key={p.id} value={p.id}>{fullName(p)}</option>
-                    ))}
-                  </select>
+                  <PersonSelect
+                    persons={persons}
+                    value={relForm.source_person_id}
+                    onChange={id => setRelForm(f => ({ ...f, source_person_id: id }))}
+                  />
                 </div>
                 <div className="col" style={{ flex: 1 }}>
                   <label className="label">
@@ -448,14 +511,12 @@ export default function ProfilePage() {
                       ? 'Младший (пасынок, усыновлённый…)'
                       : 'Персона 2'}
                   </label>
-                  <select value={relForm.target_person_id} onChange={rlf('target_person_id')} required>
-                    <option value="">— выберите —</option>
-                    {persons
-                      .filter(p => p.id !== relForm.source_person_id)
-                      .map(p => (
-                        <option key={p.id} value={p.id}>{fullName(p)}</option>
-                      ))}
-                  </select>
+                  <PersonSelect
+                    persons={persons}
+                    value={relForm.target_person_id}
+                    onChange={id => setRelForm(f => ({ ...f, target_person_id: id }))}
+                    exclude={relForm.source_person_id}
+                  />
                 </div>
               </div>
               {relForm.relationship_type === 'PARENT_CHILD' && (

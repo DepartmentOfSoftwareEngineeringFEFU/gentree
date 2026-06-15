@@ -52,6 +52,7 @@ class Person(Base):
     last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     middle_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    maiden_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sex: Mapped[PersonSex] = mapped_column(
         Enum(PersonSex, name="person_sex", native_enum=False),
         default=PersonSex.UNKNOWN,
