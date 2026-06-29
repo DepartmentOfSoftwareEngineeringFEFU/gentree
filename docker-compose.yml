@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build:
@@ -11,9 +9,20 @@ services:
       - POSTGRES_HOST=db
     ports:
       - "8000:8000"
+    volumes:
+      - backend_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
 
   db:
     image: postgres:15
@@ -33,4 +42,5 @@ services:
 
 volumes:
   postgres_data:
+  backend_uploads:
 
