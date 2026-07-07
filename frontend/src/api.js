@@ -133,6 +133,22 @@ export const api = {
   updateGeneratedComment: (id, d) => req('PATCH', `/genealogist/generated-documents/${id}/comment`, d),
   previewGeneratedDocument: (id) => req('POST', `/genealogist/generated-documents/${id}/preview`),
   exportGeneratedDocument: (id) => req('POST', `/genealogist/generated-documents/${id}/export`),
+  downloadGeneratedDocx: async (id) => {
+    const res = await fetch(`${BASE}/genealogist/generated-documents/${id}/download-docx`, {
+      headers: token() ? { Authorization: `Bearer ${token()}` } : {},
+    })
+    if (!res.ok) {
+      const contentType = res.headers.get('content-type') || ''
+      const data = contentType.includes('application/json')
+        ? await res.json()
+        : { detail: await res.text() }
+      throw new Error(data.detail || `HTTP ${res.status}`)
+    }
+    const disposition = res.headers.get('content-disposition') || ''
+    const filenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i)
+    const filename = decodeURIComponent(filenameMatch?.[1] || filenameMatch?.[2] || 'archive_request.docx')
+    return { blob: await res.blob(), filename }
+  },
   updateGeneratedStatus: (id, d) => req('PATCH', `/genealogist/generated-documents/${id}/status`, d),
   saveGeneratedDraft: (id) => req('POST', `/genealogist/generated-documents/${id}/save-draft`),
   availableGeneratedAttachments: (id) => req('GET', `/genealogist/generated-documents/${id}/available-attachments`),

@@ -11,6 +11,8 @@ services:
       - POSTGRES_HOST=db
     ports:
       - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -33,4 +35,3 @@ services:
 
 volumes:
   postgres_data:
-

@@ -1451,9 +1451,19 @@ function TemplatesAdmin() {
                             key={item.field.code}
                             className="outline sm"
                             onClick={() => insertVariable(index, item.field.code)}
-                            title={item.field.title}
+                            title={`Вставить {{${item.field.code}}}`}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: 2,
+                              maxWidth: '100%',
+                              whiteSpace: 'normal',
+                              textAlign: 'left',
+                            }}
                           >
-                            {`{{${item.field.code}}}`}
+                            <span>{item.field.title}</span>
+                            <span className="muted" style={{ fontSize: 11 }}>{`{{${item.field.code}}}`}</span>
                           </button>
                         ))}
                         {selectedFields.length === 0 && <span className="muted">Сначала добавьте поля.</span>}

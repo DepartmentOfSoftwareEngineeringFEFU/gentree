@@ -131,6 +131,10 @@ class ArchiveRequestService:
             "result_sources",
             "result_recommendations",
             "result_status",
+            "result_persons",
+            "result_facts",
+            "result_relationships",
+            "result_document_links",
         }
         if result_fields & updates.keys():
             if user.role != UserRole.GENEALOGIST or req.assigned_genealogist_user_id != user.id:
@@ -169,7 +173,11 @@ class ArchiveRequestService:
             (value or "").strip()
             for value in (req.result_summary, req.found_information)
         )
-        if not req.result_status or not has_result_text:
+        has_structured_findings = any(
+            getattr(req, field, None)
+            for field in ("result_persons", "result_facts", "result_relationships")
+        )
+        if not req.result_status or (not has_result_text and not has_structured_findings):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Перед завершением укажите результат обработки и найденные сведения.",

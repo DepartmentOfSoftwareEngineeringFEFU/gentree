@@ -44,6 +44,7 @@ class GeneratedArchiveRequestRead(BaseModel):
     generated_blocks: list[dict] = Field(default_factory=list)
     final_document_text: str | None
     attached_document_ids: list[UUID]
+    attached_document_titles: dict[str, str] = Field(default_factory=dict)
     status: GeneratedArchiveRequestStatus
     exported_docx_url: str | None
     exported_pdf_url: str | None
@@ -78,6 +79,7 @@ class FinalTextUpdate(BaseModel):
 
 class AttachmentsUpdate(BaseModel):
     attached_document_ids: list[UUID] = Field(default_factory=list)
+    attached_document_titles: dict[str, str] = Field(default_factory=dict)
 
 
 class CommentUpdate(BaseModel):

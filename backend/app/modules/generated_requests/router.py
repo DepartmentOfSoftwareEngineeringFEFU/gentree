@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
@@ -115,7 +116,7 @@ async def update_attachments(
     db: AsyncSession = Depends(get_db_session),
 ) -> GeneratedArchiveRequestRead:
     item = await GeneratedArchiveRequestService(db).update_attachments(
-        generated_id, data.attached_document_ids, current_user
+        generated_id, data.attached_document_ids, data.attached_document_titles, current_user
     )
     return GeneratedArchiveRequestRead.model_validate(item)
 
@@ -155,6 +156,23 @@ async def export_generated_document(
 ) -> GeneratedArchiveRequestRead:
     item = await GeneratedArchiveRequestService(db).export(generated_id, current_user)
     return GeneratedArchiveRequestRead.model_validate(item)
+
+
+@router.get("/generated-documents/{generated_id}/download-docx")
+async def download_generated_docx(
+    generated_id: UUID,
+    current_user=Depends(require_role(UserRole.GENEALOGIST)),
+    db: AsyncSession = Depends(get_db_session),
+) -> FileResponse:
+    service = GeneratedArchiveRequestService(db)
+    item = await service.get(generated_id, current_user)
+    path = service.get_exported_docx_path(item)
+    filename = service.exported_docx_filename(item)
+    return FileResponse(
+        path=path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @router.patch("/generated-documents/{generated_id}/status", response_model=GeneratedArchiveRequestRead)

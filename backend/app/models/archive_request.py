@@ -231,6 +231,10 @@ class ArchiveRequest(Base):
     result_sources: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_recommendations: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    result_persons: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    result_facts: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    result_relationships: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    result_document_links: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     current_status: Mapped[ArchiveRequestStatus] = mapped_column(
         _archive_request_status_col,
         default=ArchiveRequestStatus.DRAFT,
@@ -311,6 +315,7 @@ class GeneratedArchiveRequest(Base):
     generated_blocks: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     final_document_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     attached_document_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    attached_document_titles: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[GeneratedArchiveRequestStatus] = mapped_column(
         _generated_archive_request_status_col,
         default=GeneratedArchiveRequestStatus.DRAFT,

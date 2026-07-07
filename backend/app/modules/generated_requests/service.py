@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, date, datetime
+from pathlib import Path
 from uuid import UUID
 
+from docx import Document as WordDocument
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.models.archive_request import (
     ArchiveRequest,
     ArchiveRequestTemplate,
@@ -149,6 +154,7 @@ class GeneratedArchiveRequestService:
         self, generated_id: UUID, field_values: dict, user: User
     ) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
+        self._assert_draft(generated)
         generated.field_values = field_values
         template = await self._get_template(generated.template_id)
         generated.generated_blocks, generated.final_document_text = self._build_document(template, field_values)
@@ -160,23 +166,36 @@ class GeneratedArchiveRequestService:
         self, generated_id: UUID, final_document_text: str, user: User
     ) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
+        self._assert_draft(generated)
         generated.final_document_text = final_document_text
         generated.updated_at = datetime.now(UTC)
         await self.db.commit()
         return await self.get(generated.id, user)
 
     async def update_attachments(
-        self, generated_id: UUID, attached_document_ids: list[UUID], user: User
+        self,
+        generated_id: UUID,
+        attached_document_ids: list[UUID],
+        attached_document_titles: dict[str, str],
+        user: User,
     ) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
-        available_ids = {doc.id for doc in await self.available_attachments(generated.id, user)}
+        self._assert_draft(generated)
+        available = await self.available_attachments(generated.id, user)
+        available_ids = {doc.id for doc in available}
+        available_names = {str(doc.id): doc.file_name for doc in available}
         invalid = [doc_id for doc_id in attached_document_ids if doc_id not in available_ids]
         if invalid:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="One or more selected documents are not available for this request",
             )
-        generated.attached_document_ids = [str(doc_id) for doc_id in attached_document_ids]
+        selected_ids = [str(doc_id) for doc_id in attached_document_ids]
+        generated.attached_document_ids = selected_ids
+        generated.attached_document_titles = {
+            doc_id: (attached_document_titles.get(doc_id) or available_names.get(doc_id) or "").strip()
+            for doc_id in selected_ids
+        }
         generated.updated_at = datetime.now(UTC)
         await self.db.commit()
         return await self.get(generated.id, user)
@@ -185,6 +204,7 @@ class GeneratedArchiveRequestService:
         self, generated_id: UUID, context_comment: str | None, user: User
     ) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
+        self._assert_draft(generated)
         generated.context_comment = context_comment
         generated.updated_at = datetime.now(UTC)
         await self.db.commit()
@@ -199,6 +219,15 @@ class GeneratedArchiveRequestService:
 
     async def export(self, generated_id: UUID, user: User) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
+        if generated.status not in (
+            GeneratedArchiveRequestStatus.DRAFT,
+            GeneratedArchiveRequestStatus.PREPARED,
+            GeneratedArchiveRequestStatus.EXPORTED,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only draft, prepared or exported requests can be exported",
+            )
         template = await self._get_template(generated.template_id)
         missing = self._missing_required_field_codes(template, generated.field_values)
         if missing:
@@ -210,14 +239,35 @@ class GeneratedArchiveRequestService:
             generated.generated_blocks, generated.final_document_text = self._build_document(
                 template, generated.field_values
             )
+        generated.attached_document_titles = await self._attachment_title_map(generated)
+        generated.exported_docx_url = self._build_docx(generated)
         generated.status = GeneratedArchiveRequestStatus.EXPORTED
         generated.exported_at = datetime.now(UTC)
         generated.updated_at = datetime.now(UTC)
         await self.db.commit()
         return await self.get(generated.id, user)
 
+    def get_exported_docx_path(self, generated: GeneratedArchiveRequest) -> str:
+        if not generated.exported_docx_url:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="DOCX export has not been created yet",
+            )
+        path = self._docx_path(generated.id)
+        if not path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="DOCX export file not found",
+            )
+        return str(path)
+
+    def exported_docx_filename(self, generated: GeneratedArchiveRequest) -> str:
+        safe_title = re.sub(r"[^a-zA-Zа-яА-Я0-9_-]+", "_", generated.template_title_snapshot).strip("_")
+        return f"{safe_title or 'archive_request'}_{generated.id}.docx"
+
     async def save_draft(self, generated_id: UUID, user: User) -> GeneratedArchiveRequest:
         generated = await self.get(generated_id, user)
+        self._assert_draft(generated)
         generated.status = GeneratedArchiveRequestStatus.DRAFT
         generated.updated_at = datetime.now(UTC)
         await self.db.commit()
@@ -251,6 +301,15 @@ class GeneratedArchiveRequestService:
                 )
             if not generated.sent_at:
                 generated.sent_at = datetime.now(UTC)
+        if new_status == GeneratedArchiveRequestStatus.RESPONSE_RECEIVED:
+            if generated.status not in (
+                GeneratedArchiveRequestStatus.SENT_OUTSIDE_SYSTEM,
+                GeneratedArchiveRequestStatus.RESPONSE_RECEIVED,
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Response can be marked as received only after request is sent",
+                )
         generated.status = new_status
         generated.updated_at = datetime.now(UTC)
         if new_status == GeneratedArchiveRequestStatus.EXPORTED and not generated.exported_at:
@@ -377,7 +436,14 @@ class GeneratedArchiveRequestService:
             .order_by(Person.created_at)
         )
         persons = list(persons_result.scalars().all())
-        target_person = persons[0] if len(persons) == 1 else None
+        target_person = persons[0] if len(persons) == 1 else self._find_target_person(
+            persons,
+            " ".join(
+                part
+                for part in [archive_request.title, archive_request.request_goal]
+                if part
+            ),
+        )
 
         context: dict[str, str] = {
             "request_purpose": archive_request.request_goal or "",
@@ -482,6 +548,100 @@ class GeneratedArchiveRequestService:
 
         return _VARIABLE_RE.sub(replace, text)
 
+    async def _attachment_title_map(self, generated: GeneratedArchiveRequest) -> dict[str, str]:
+        selected_ids = [str(item) for item in (generated.attached_document_ids or [])]
+        if not selected_ids:
+            return {}
+        existing_titles = generated.attached_document_titles or {}
+        uuids: list[UUID] = []
+        for item in selected_ids:
+            try:
+                uuids.append(UUID(item))
+            except ValueError:
+                continue
+        result = await self.db.execute(select(Document).where(Document.id.in_(uuids)))
+        file_names = {str(doc.id): doc.file_name for doc in result.scalars().all()}
+        return {
+            doc_id: (existing_titles.get(doc_id) or file_names.get(doc_id) or doc_id).strip()
+            for doc_id in selected_ids
+        }
+
+    def _build_docx(self, generated: GeneratedArchiveRequest) -> str:
+        destination = self._docx_path(generated.id)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        doc = WordDocument()
+        style = doc.styles["Normal"]
+        style.font.name = "Times New Roman"
+        style.font.size = Pt(14)
+
+        blocks = generated.generated_blocks or []
+        if blocks:
+            for block in blocks:
+                self._add_docx_block(doc, block)
+        else:
+            self._add_plain_docx_text(doc, generated.final_document_text or "")
+
+        attachment_title_map = generated.attached_document_titles or {}
+        attachment_titles = [
+            attachment_title_map.get(str(doc_id))
+            for doc_id in (generated.attached_document_ids or [])
+            if attachment_title_map.get(str(doc_id))
+        ]
+        if attachment_titles:
+            doc.add_paragraph()
+            heading = doc.add_paragraph()
+            heading.add_run("Приложения:").bold = True
+            for index, title in enumerate(attachment_titles, start=1):
+                doc.add_paragraph(f"{index}. {title}")
+
+        doc.save(destination)
+        return f"/api/v1/genealogist/generated-documents/{generated.id}/download-docx"
+
+    def _add_docx_block(self, doc: WordDocument, block: dict) -> None:
+        block_type = block.get("block_type")
+        content = (block.get("content") or "").strip()
+        if not content:
+            return
+
+        alignment = WD_ALIGN_PARAGRAPH.LEFT
+        bold = False
+        font_size = Pt(14)
+
+        if block_type == ArchiveTemplateBlockType.HEADER_RIGHT.value:
+            alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        elif block_type == ArchiveTemplateBlockType.HEADER_LEFT.value:
+            alignment = WD_ALIGN_PARAGRAPH.LEFT
+        elif block_type == ArchiveTemplateBlockType.TITLE.value:
+            alignment = WD_ALIGN_PARAGRAPH.CENTER
+            bold = True
+            font_size = Pt(16)
+        elif block_type == ArchiveTemplateBlockType.FOOTER.value:
+            alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        paragraphs = [item.strip() for item in re.split(r"\n\s*\n", content) if item.strip()]
+        for index, paragraph_text in enumerate(paragraphs):
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = alignment
+            paragraph.paragraph_format.space_after = Pt(8)
+            run = paragraph.add_run(paragraph_text)
+            run.bold = bold
+            run.font.name = "Times New Roman"
+            run.font.size = font_size
+            if index == len(paragraphs) - 1:
+                paragraph.paragraph_format.space_after = Pt(12)
+
+    def _add_plain_docx_text(self, doc: WordDocument, text: str) -> None:
+        for paragraph_text in text.splitlines():
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            run = paragraph.add_run(paragraph_text)
+            run.font.name = "Times New Roman"
+            run.font.size = Pt(14)
+
+    def _docx_path(self, generated_id: UUID) -> Path:
+        return Path(settings.upload_dir) / "generated_archive_requests" / f"{generated_id}.docx"
+
     def _missing_required_field_codes(
         self,
         template: ArchiveRequestTemplate,
@@ -500,11 +660,35 @@ class GeneratedArchiveRequestService:
         if user.role != UserRole.GENEALOGIST:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Genealogist only")
 
+    def _assert_draft(self, generated: GeneratedArchiveRequest) -> None:
+        if generated.status != GeneratedArchiveRequestStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only draft generated requests can be edited",
+            )
+
     def _user_name(self, user: User) -> str:
         return " ".join(part for part in [user.last_name, user.first_name, user.middle_name] if part) or user.email
 
     def _person_name(self, person: Person) -> str:
         return " ".join(part for part in [person.last_name, person.first_name, person.middle_name] if part)
+
+    def _find_target_person(self, persons: list[Person], text: str) -> Person | None:
+        normalized_text = self._match_text(text)
+        matches: list[Person] = []
+        for person in persons:
+            parts = [person.last_name, person.first_name, person.middle_name]
+            tokens = [self._match_token(part) for part in parts if part]
+            if tokens and all(token in normalized_text for token in tokens):
+                matches.append(person)
+        return matches[0] if len(matches) == 1 else None
+
+    def _match_text(self, value: str) -> str:
+        return "".join(ch.lower() for ch in value if ch.isalnum() or ch.isspace())
+
+    def _match_token(self, value: str) -> str:
+        normalized = self._match_text(value).replace(" ", "")
+        return normalized[:4] if len(normalized) > 4 else normalized
 
     def _format_date(self, value: date) -> str:
         return value.strftime("%d.%m.%Y")

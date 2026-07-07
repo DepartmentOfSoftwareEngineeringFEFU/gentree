@@ -27,6 +27,10 @@ class ArchiveRequestUpdate(BaseModel):
     result_sources: str | None = None
     result_recommendations: str | None = None
     result_status: str | None = None
+    result_persons: list[dict] | None = None
+    result_facts: list[dict] | None = None
+    result_relationships: list[dict] | None = None
+    result_document_links: list[dict] | None = None
     outgoing_number: str | None = None
 
 
@@ -70,6 +74,10 @@ class ArchiveRequestRead(BaseModel):
     result_sources: str | None
     result_recommendations: str | None
     result_status: str | None
+    result_persons: list[dict]
+    result_facts: list[dict]
+    result_relationships: list[dict]
+    result_document_links: list[dict]
     current_status: ArchiveRequestStatus
     outgoing_number: str | None
     sent_at: datetime | None
